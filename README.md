@@ -4,6 +4,8 @@
 
 Atelier fills the gap between Illustrator and Figma for brand designers: a fast, focused tool for sketching ideas, drawing vector marks, building moodboards, and assembling identity systems — without a subscription, an account, or a cloud. It runs in your browser or as a native desktop app, and everything you make is stored locally on your machine.
 
+**[Try it in your browser →](https://atelier-glauser.vercel.app)** — no install, no account.
+
 <!-- TODO: add a screenshot at docs/screenshot.png and uncomment this line:
 ![Atelier screenshot](docs/screenshot.png)
 -->
