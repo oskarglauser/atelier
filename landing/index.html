@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier — Vector Design for Branding & Logos</title>
+  <meta name="description" content="A precise, native vector design tool built for brand designers. Craft logos, identity systems, and visual marks with intention. Free for macOS.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='46' fill='none' viewBox='0 0 48 46'%3E%3Cpath fill='%23111' d='M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=General+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black: #111111;
+      --gray-900: #1a1a1a;
+      --gray-800: #2a2a2a;
+      --gray-600: #6b6b6b;
+      --gray-400: #999999;
+      --gray-300: #b5b5b5;
+      --gray-200: #d4d4d4;
+      --gray-100: #ebebeb;
+      --gray-50: #f5f5f5;
+      --white: #ffffff;
+      --border: rgba(0, 0, 0, 0.08);
+      --border-hover: rgba(0, 0, 0, 0.14);
+    }
+
+    html {
+      font-family: 'General Sans', -apple-system, sans-serif;
+      background: var(--white);
+      color: var(--black);
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    body { overflow-x: hidden; }
+
+    /* --- Layout --- */
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* --- Navigation --- */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 0;
+      transition: background 0.4s, backdrop-filter 0.4s;
+    }
+
+    nav.scrolled {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--black);
+    }
+
+    .logo svg { width: 28px; height: auto; }
+
+    .logo span {
+      font-family: 'Instrument Serif', serif;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-version {
+      font-size: 11px;
+      color: var(--gray-400);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 100px;
+      letter-spacing: 0.04em;
+    }
+
+    /* --- Hero --- */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      padding: 120px 32px 80px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px 6px 8px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: var(--gray-50);
+      font-size: 13px;
+      color: var(--gray-600);
+      margin-bottom: 48px;
+      animation: fade-up 0.8s ease both;
+    }
+
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--black);
+      border-radius: 50%;
+    }
+
+    .hero h1 {
+      font-family: 'Instrument Serif', serif;
+      font-weight: 400;
+      font-size: clamp(52px, 8vw, 96px);
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--black);
+      margin-bottom: 28px;
+      animation: fade-up 0.8s ease 0.1s both;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+    }
+
+    .hero-sub {
+      font-size: clamp(17px, 2vw, 20px);
+      line-height: 1.6;
+      color: var(--gray-600);
+      max-width: 480px;
+      margin-bottom: 52px;
+      animation: fade-up 0.8s ease 0.2s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      animation: fade-up 0.8s ease 0.3s both;
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 36px;
+      background: var(--black);
+      color: var(--white);
+      font-family: 'General Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-download:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+      background: var(--gray-900);
+    }
+
+    .btn-download:active { transform: translateY(0); }
+
+    .btn-download svg {
+      width: 18px;
+      height: 18px;
+      opacity: 0.7;
+    }
+
+    .hero-meta {
+      font-size: 13px;
+      color: var(--gray-400);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero-meta svg {
+      width: 14px;
+      height: 14px;
+      opacity: 0.4;
+    }
+
+    /* --- Divider --- */
+    .divider {
+      width: 1px;
+      height: 80px;
+      margin: 0 auto;
+      background: linear-gradient(to bottom, var(--gray-200), transparent);
+    }
+
+    /* --- Preview --- */
+    .preview-section {
+      padding: 40px 0 120px;
+      position: relative;
+    }
+
+    .preview-frame {
+      position: relative;
+      border-radius: 16px;
+      border: 1px solid var(--border-hover);
+      overflow: hidden;
+      background: var(--gray-50);
+      box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.08),
+        0 4px 20px rgba(0, 0, 0, 0.04);
+      animation: fade-up 0.8s ease 0.5s both;
+    }
+
+    .preview-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 18px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preview-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--gray-300);
+      opacity: 0.5;
+    }
+
+    .preview-body {
+      aspect-ratio: 16 / 9.5;
+      background: var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preview-canvas {
+      width: 85%;
+      height: 80%;
+      position: relative;
+    }
+
+    .pv-text {
+      position: absolute;
+      color: var(--black);
+      font-family: 'Instrument Serif', serif;
+      white-space: nowrap;
+    }
+
+    .pv-circle {
+      position: absolute;
+      border-radius: 50%;
+    }
+
+    .pv-toolbar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 44px;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 14px;
+      gap: 4px;
+    }
+
+    .pv-tool {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pv-tool.active { background: var(--gray-100); }
+
+    .pv-tool-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+      border: 1.5px solid var(--gray-300);
+    }
+
+    .pv-tool-icon.circle { border-radius: 50%; }
+    .pv-tool-icon.active { border-color: var(--black); }
+
+    .pv-layers {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 180px;
+      top: 0;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      padding: 12px 0 0 44px;
+    }
+
+    .pv-layers-title {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--gray-400);
+      padding: 0 10px;
+      margin-bottom: 8px;
+    }
+
+    .pv-layer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      font-size: 10px;
+      color: var(--gray-600);
+      border-radius: 4px;
+      margin: 0 4px;
+    }
+
+    .pv-layer.selected {
+      background: var(--gray-100);
+      color: var(--black);
+    }
+
+    .pv-layer-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 2px;
+    }
+
+    .pv-props {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 200px;
+      background: var(--white);
+      border-left: 1px solid var(--border);
+      padding: 14px 12px;
+    }
+
+    .pv-prop-title {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--gray-400);
+      margin-bottom: 10px;
+    }
+
+    .pv-prop-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .pv-prop-label {
+      font-size: 9px;
+      color: var(--gray-400);
+      width: 14px;
+    }
+
+    .pv-prop-input {
+      flex: 1;
+      height: 22px;
+      background: var(--gray-50);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0 6px;
+      font-size: 10px;
+      color: var(--gray-600);
+      font-family: 'General Sans', sans-serif;
+      display: flex;
+      align-items: center;
+    }
+
+    .pv-selection-box {
+      position: absolute;
+      border: 1.5px solid var(--black);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+
+    .pv-handle {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      border: 1.5px solid var(--black);
+      background: white;
+      border-radius: 1px;
+    }
+
+    /* --- Features --- */
+    .features-section {
+      padding: 0 0 140px;
+    }
+
+    .section-label {
+      text-align: center;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--gray-400);
+      margin-bottom: 20px;
+    }
+
+    .section-heading {
+      text-align: center;
+      font-family: 'Instrument Serif', serif;
+      font-weight: 400;
+      font-size: clamp(32px, 4.5vw, 48px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 72px;
+      color: var(--black);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .feature-card {
+      background: var(--white);
+      padding: 40px 32px;
+      transition: background 0.3s;
+    }
+
+    .feature-card:hover { background: var(--gray-50); }
+
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      border: 1px solid var(--border-hover);
+      background: var(--gray-50);
+    }
+
+    .feature-icon svg {
+      width: 18px;
+      height: 18px;
+      color: var(--black);
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .feature-card h3 {
+      font-family: 'General Sans', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: var(--black);
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--gray-600);
+    }
+
+    /* --- CTA --- */
+    .cta-section {
+      padding: 80px 0 120px;
+      text-align: center;
+      position: relative;
+    }
+
+    .cta-section h2 {
+      font-family: 'Instrument Serif', serif;
+      font-weight: 400;
+      font-size: clamp(36px, 5vw, 56px);
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .cta-section h2 em {
+      font-style: italic;
+    }
+
+    .cta-sub {
+      font-size: 17px;
+      color: var(--gray-600);
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .cta-actions {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* --- Footer --- */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 0;
+    }
+
+    footer .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .footer-credit {
+      font-size: 13px;
+      color: var(--gray-400);
+    }
+
+    .footer-credit a {
+      color: var(--gray-600);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-credit a:hover { color: var(--black); }
+
+    .footer-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .footer-link {
+      font-size: 13px;
+      color: var(--gray-400);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-link:hover { color: var(--gray-600); }
+
+    /* --- Animations --- */
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 900px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      .pv-layers, .pv-props, .pv-toolbar { display: none; }
+      .preview-canvas { width: 95%; height: 85%; }
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 100px 24px 60px; }
+      .hero-sub { font-size: 16px; }
+      .container { padding: 0 20px; }
+      .feature-card { padding: 28px 24px; }
+      footer .container { flex-direction: column; gap: 16px; text-align: center; }
+      .footer-left { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav id="nav">
+    <div class="container">
+      <a href="#" class="logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#111" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/></svg>
+        <span>Atelier</span>
+      </a>
+      <span class="nav-version">v0.3.0</span>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Now available for macOS
+    </div>
+    <h1>Design with<br><em>intention</em></h1>
+    <p class="hero-sub">A precise vector design tool built for brand designers. Craft logos, identity systems, and visual marks.</p>
+    <div class="hero-actions">
+      <a href="#download" class="btn-download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download for Mac
+      </a>
+      <span class="hero-meta">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 21.99 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 21.99C7.79 22.03 6.8 20.68 5.96 19.47C4.25 16.99 2.97 12.5 4.7 9.56C5.55 8.1 7.13 7.17 8.82 7.15C10.1 7.13 11.32 8.01 12.11 8.01C12.89 8.01 14.37 6.95 15.92 7.11C16.57 7.14 18.39 7.38 19.56 9.07C19.47 9.13 17.39 10.34 17.41 12.78C17.44 15.68 20.06 16.67 20.09 16.68C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/></svg>
+        Apple Silicon &middot; macOS 13+
+      </span>
+    </div>
+  </section>
+
+  <!-- App Preview -->
+  <section class="preview-section">
+    <div class="container">
+      <div class="preview-frame reveal">
+        <div class="preview-titlebar">
+          <span class="preview-dot"></span>
+          <span class="preview-dot"></span>
+          <span class="preview-dot"></span>
+        </div>
+        <div class="preview-body">
+          <div class="preview-canvas">
+            <!-- Toolbar -->
+            <div class="pv-toolbar">
+              <div class="pv-tool active"><div class="pv-tool-icon active" style="border:0;width:14px;height:14px;position:relative;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg></div></div>
+              <div class="pv-tool"><div class="pv-tool-icon"></div></div>
+              <div class="pv-tool"><div class="pv-tool-icon circle"></div></div>
+              <div class="pv-tool"><div class="pv-tool-icon" style="border:0;width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b5b5b5" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></div></div>
+              <div class="pv-tool"><div class="pv-tool-icon" style="border:0;width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b5b5b5" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div></div>
+              <div class="pv-tool"><div class="pv-tool-icon" style="border:0;width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b5b5b5" stroke-width="2" stroke-linecap="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></div></div>
+            </div>
+
+            <!-- Layers -->
+            <div class="pv-layers">
+              <div class="pv-layers-title">Layers</div>
+              <div class="pv-layer selected">
+                <span class="pv-layer-dot" style="background: var(--black);"></span>
+                Logo Mark
+              </div>
+              <div class="pv-layer">
+                <span class="pv-layer-dot" style="background: var(--gray-300);"></span>
+                Wordmark
+              </div>
+              <div class="pv-layer">
+                <span class="pv-layer-dot" style="background: var(--gray-300);"></span>
+                Tagline
+              </div>
+              <div class="pv-layer">
+                <span class="pv-layer-dot" style="background: var(--gray-300);"></span>
+                Background
+              </div>
+            </div>
+
+            <!-- Design elements on canvas -->
+            <div style="position:absolute; left:200px; top:0; right:200px; bottom:0;">
+              <!-- Logo shape -->
+              <div class="pv-circle" style="left:calc(50% - 40px); top:calc(38% - 40px); width:80px; height:80px; background: var(--black);"></div>
+              <!-- Wordmark -->
+              <div class="pv-text" style="left:50%; top:60%; transform:translateX(-50%); font-size:28px; letter-spacing:-0.02em;">Luminary</div>
+              <!-- Tagline -->
+              <div class="pv-text" style="left:50%; top:72%; transform:translateX(-50%); font-size:11px; font-family:'General Sans',sans-serif; color:var(--gray-600); letter-spacing:0.14em; text-transform:uppercase;">Creative Studio</div>
+
+              <!-- Selection box around logo -->
+              <div class="pv-selection-box" style="left:calc(50% - 46px); top:calc(38% - 46px); width:92px; height:92px;">
+                <div class="pv-handle" style="top:-4px; left:-4px;"></div>
+                <div class="pv-handle" style="top:-4px; right:-4px;"></div>
+                <div class="pv-handle" style="bottom:-4px; left:-4px;"></div>
+                <div class="pv-handle" style="bottom:-4px; right:-4px;"></div>
+              </div>
+            </div>
+
+            <!-- Properties -->
+            <div class="pv-props">
+              <div class="pv-prop-title">Properties</div>
+              <div class="pv-prop-row">
+                <span class="pv-prop-label">X</span>
+                <div class="pv-prop-input">312</div>
+                <span class="pv-prop-label">Y</span>
+                <div class="pv-prop-input">186</div>
+              </div>
+              <div class="pv-prop-row">
+                <span class="pv-prop-label">W</span>
+                <div class="pv-prop-input">80</div>
+                <span class="pv-prop-label">H</span>
+                <div class="pv-prop-input">80</div>
+              </div>
+              <div style="border-top: 1px solid var(--border); margin: 14px 0;"></div>
+              <div class="pv-prop-title">Fill</div>
+              <div class="pv-prop-row">
+                <div style="width:18px; height:18px; border-radius:4px; background: var(--black); border: 1px solid var(--border);"></div>
+                <div class="pv-prop-input">#111111</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Features -->
+  <section class="features-section" style="padding-top: 100px;">
+    <div class="container">
+      <div class="section-label reveal">Capabilities</div>
+      <h2 class="section-heading reveal">Everything you need,<br>nothing you don't</h2>
+      <div class="features-grid reveal">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+          </div>
+          <h3>Vector precision</h3>
+          <p>Full pen tool, boolean operations, and path editing. Every anchor point exactly where you want it.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          </div>
+          <h3>Frames & layout</h3>
+          <p>Organize with nested frames. Auto-include objects, clip content, and structure your artboards intuitively.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+          </div>
+          <h3>Typography</h3>
+          <p>Access every font on your Mac. Convert text to outlines for final delivery. Full weight and style control.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>Groups & hierarchy</h3>
+          <p>Nest shapes into groups that move as one. Reorder in the layer tree with drag and drop.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22C6.5 22 2 17.5 2 12S6.5 2 12 2s10 4.5 10 10-4.5 10-10 10z"/></svg>
+          </div>
+          <h3>Gradients & fills</h3>
+          <p>Linear and radial gradients with noise textures. Rich fill controls for every shape type.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h3>Export anywhere</h3>
+          <p>Export to SVG, PNG, PDF, or copy as code. Pixel-perfect output at any scale.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- CTA -->
+  <section class="cta-section" id="download">
+    <div class="container">
+      <h2 class="reveal">Start making <em>marks</em></h2>
+      <p class="cta-sub reveal">Free to download. Built native for Apple Silicon.</p>
+      <div class="cta-actions reveal">
+        <a href="https://github.com/oskarglauser/atelier/releases/latest" class="btn-download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download for Mac
+        </a>
+        <span class="hero-meta">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;opacity:0.4;"><path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 21.99 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 21.99C7.79 22.03 6.8 20.68 5.96 19.47C4.25 16.99 2.97 12.5 4.7 9.56C5.55 8.1 7.13 7.17 8.82 7.15C10.1 7.13 11.32 8.01 12.11 8.01C12.89 8.01 14.37 6.95 15.92 7.11C16.57 7.14 18.39 7.38 19.56 9.07C19.47 9.13 17.39 10.34 17.41 12.78C17.44 15.68 20.06 16.67 20.09 16.68C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/></svg>
+          Apple Silicon &middot; macOS 13+
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-left">
+        <a href="#" class="logo" style="gap:8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="19" fill="none" viewBox="0 0 48 46"><path fill="#111" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/></svg>
+        </a>
+        <span class="footer-credit">Made by <a href="https://glauser.com" target="_blank" rel="noopener noreferrer">Glauser Creative</a></span>
+      </div>
+      <div class="footer-right">
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 40);
+    }, { passive: true });
+
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => entry.target.classList.add('visible'), i * 80);
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    reveals.forEach((el) => observer.observe(el));
+  </script>
+
+</body>
+</html>

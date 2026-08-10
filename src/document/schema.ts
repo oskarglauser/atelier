@@ -1,0 +1,67 @@
+import type { Shape, ShapeType } from '../types/document'
+import { generateId } from '../utils/id'
+import { DEFAULT_FILL, DEFAULT_STROKE, DEFAULT_STROKE_WIDTH, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_FONT_WEIGHT, DEFAULT_TEXT } from '../utils/constants'
+
+const baseDefaults = {
+  name: '',
+  x: 0,
+  y: 0,
+  width: 100,
+  height: 100,
+  rotation: 0,
+  opacity: 1,
+  visible: true,
+  locked: false,
+  lockProportions: false,
+  fill: DEFAULT_FILL,
+  stroke: DEFAULT_STROKE,
+  strokeWidth: DEFAULT_STROKE_WIDTH,
+  parentId: null,
+}
+
+const typeDefaults: Record<ShapeType, Partial<Shape>> = {
+  rectangle: { cornerRadius: [0, 0, 0, 0] },
+  ellipse: {},
+  line: { points: [0, 0, 100, 0], fill: '', stroke: '#000000', strokeWidth: 2, startCap: 'none', endCap: 'none' },
+  path: { pathData: '', closed: false, fill: '', stroke: '#000000', strokeWidth: 2 },
+  text: {
+    text: DEFAULT_TEXT,
+    fontFamily: DEFAULT_FONT_FAMILY,
+    fontSize: DEFAULT_FONT_SIZE,
+    fontWeight: DEFAULT_FONT_WEIGHT,
+    fontStyle: 'normal' as const,
+    textAlign: 'left' as const,
+    verticalAlign: 'top' as const,
+    lineHeight: 1.3,
+    letterSpacing: -0.5,
+    textDecoration: 'none' as const,
+    textTransform: 'none' as const,
+    paragraphSpacing: 0,
+    kerning: [],
+    fill: '#000000',
+    width: 300,
+    height: 36,
+  },
+  image: { src: '', objectFit: 'cover' },
+  frame: { clipContent: true, backgroundColor: '#ffffff', width: 400, height: 300, rulers: [], exports: [] },
+  group: {},
+}
+
+let shapeCounters: Record<string, number> = {}
+
+export function resetShapeCounters() {
+  shapeCounters = {}
+}
+
+export function createShapeData(type: ShapeType, overrides: Partial<Shape> = {}): Shape {
+  shapeCounters[type] = (shapeCounters[type] || 0) + 1
+  const typeName = type.charAt(0).toUpperCase() + type.slice(1)
+  return {
+    ...baseDefaults,
+    ...typeDefaults[type],
+    id: generateId(),
+    type,
+    name: `${typeName} ${shapeCounters[type]}`,
+    ...overrides,
+  } as Shape
+}
