@@ -59,6 +59,15 @@ IDs are generated with `nanoid`.
 
 The webview runs the same build as the browser app; `src/utils/isTauri.ts` gates desktop-only paths. The Rust side (`src-tauri/src/lib.rs`) exposes exactly two commands — `list_system_fonts` and `read_font_file` — plus the updater/process plugins. Keep the IPC surface minimal: new commands widen the attack surface of the app and need a clear justification. The webview CSP is configured in `src-tauri/tauri.conf.json`; if you add a feature that talks to a new origin, the CSP must be updated deliberately, not loosened wholesale.
 
+## Releasing a new version
+
+`src-tauri/tauri.conf.json` is the **single source of truth** for the version — Vite reads it at startup and injects it as `__APP_VERSION__`, which is shown in the projects-view footer and in Settings. To cut a release:
+
+1. Bump `version` in `src-tauri/tauri.conf.json`, `package.json`, and `src-tauri/Cargo.toml` (keep all three identical).
+2. Refresh the lockfiles: `npm install --package-lock-only` and `cargo update -p atelier --offline` (from `src-tauri/`).
+3. Restart the dev server if it's running — `__APP_VERSION__` is baked in at server start, so the footer keeps showing the old number until you do.
+4. Commit, then tag `vX.Y.Z` and push the tag. The release workflow builds and publishes the signed macOS bundles.
+
 ## Pull request guidelines
 
 - Keep PRs focused — one feature or fix per PR.

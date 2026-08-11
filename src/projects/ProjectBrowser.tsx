@@ -119,10 +119,12 @@ export function ProjectBrowser() {
           ))}
         </div>
       </div>
-      <footer className="py-4 text-center text-[10px] text-text-dim/50 tracking-wide shrink-0">
+      <footer className="py-4 flex items-center justify-center gap-2 text-[10px] text-text-dim/50 tracking-wide shrink-0">
         <a href="https://glauser.com" target="_blank" rel="noopener noreferrer" className="hover:text-text-dim transition-colors">
           Made by Glauser Creative
         </a>
+        <span aria-hidden>·</span>
+        <span>v{__APP_VERSION__}</span>
       </footer>
 
       {/* Create Project Dialog */}

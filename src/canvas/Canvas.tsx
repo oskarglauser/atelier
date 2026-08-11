@@ -739,7 +739,10 @@ export function Canvas() {
         <Layer name="grid-layer" listening={false}>
           <Grid />
         </Layer>
-        <Layer name="shapes-layer">
+        {/* While a drawing tool is active the shapes must not react to the
+            pointer — otherwise starting a rectangle on top of a frame also
+            begins a Konva drag of that frame and moves it as you draw. */}
+        <Layer name="shapes-layer" listening={activeTool === 'select'}>
           {isCreating && selectionBox && activeTool === 'frame' && (
             <KonvaRect
               x={selectionBox.x}

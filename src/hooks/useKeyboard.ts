@@ -241,14 +241,13 @@ export function useKeyboard() {
               const { zoom, offsetX, offsetY } = useViewportStore.getState()
               const centerX = (window.innerWidth / 2 - offsetX) / zoom
               const centerY = (window.innerHeight / 2 - offsetY) / zoom
-              const maxDim = 400
-              let w = img.width
-              let h = img.height
-              if (w > maxDim || h > maxDim) {
-                const scale = maxDim / Math.max(w, h)
-                w *= scale
-                h *= scale
-              }
+              // Clipboard images from a Retina screen carry device pixels
+              // (a 400pt capture is 800px on a 2x display). Place them at
+              // their logical size so they match what was captured; the full
+              // pixel data is kept, so they stay sharp when zoomed or exported.
+              const dpr = window.devicePixelRatio || 1
+              const w = img.width / dpr
+              const h = img.height / dpr
               const current = getAllShapes(doc, activePageId)
               const bounds = { x: centerX - w / 2, y: centerY - h / 2, width: w, height: h }
               const shape = addShape(doc, activePageId, 'image', {
