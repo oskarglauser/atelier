@@ -2,10 +2,11 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { Transformer } from 'react-konva'
 import type Konva from 'konva'
 import { useUIStore } from '../store/uiStore'
+import { useHistoryStore } from '../store/historyStore'
 import { useDocument } from '../hooks/useDocument'
 import { useShapes } from '../hooks/useShapes'
-import { updateShape, addShape, reorderShape } from '../document/operations'
-import type * as Y from 'yjs'
+import { updateShape, duplicateShapes, moveShapes } from '../document/operations'
+import { selectionRoots, getDescendants, getAncestors, getChildren, findDropFrame } from '../document/hierarchy'
 import type { Shape } from '../types/document'
 import { snapWithRulers } from '../utils/snapToRulers'
 
@@ -16,90 +17,44 @@ interface Props {
   stageRef: React.RefObject<Konva.Stage | null>
 }
 
-interface GroupContext {
-  shape: Shape | undefined
-  parentGroupId: string | undefined
-  isGroupChild: boolean
-  siblings: Shape[]
-  children: Shape[]
+/**
+ * One canvas drag = one gesture. Nothing is written to Yjs until dragend:
+ * Konva moves the nodes imperatively (container children follow for free as
+ * Konva descendants), then a single transaction commits positions, optional
+ * alt-duplicates, and reparenting — so every gesture is exactly one undo step.
+ */
+interface DragGesture {
+  /** The grabbed node — drives snapping and drop-target evaluation */
+  primaryId: string
+  /** Pointer position in page coords at gesture start */
+  pointerStart: { x: number; y: number }
+  /** Every Konva node that fired dragstart (transformer-synced set) */
+  nodeIds: Set<string>
+  /** Moved root shape ids, in array order */
+  roots: string[]
+  /**
+   * Set when dragging an unselected child of a selected group: the whole
+   * group subtree moves and no reparenting happens.
+   */
+  entourage: { rootId: string; peerIds: string[] } | null
+  /** Start positions for every shape whose x/y will be committed */
+  startPositions: Map<string, { x: number; y: number }>
+  /** Snapshot of root shapes at gesture start (bounds for reparent tests) */
+  rootShapesAtStart: Map<string, Shape>
+  /** Shapes snapshot at gesture start (drop-frame lookups) */
+  allShapesAtStart: Shape[]
+  /** Roots + all their descendants — exclusion set for findDropFrame */
+  movedIds: Set<string>
+  alt: boolean
+  committed: boolean
+  lastDelta: { x: number; y: number }
 }
 
-function resolveGroupContext(shapesMap: Map<string, Shape>, shapes: Shape[], id: string): GroupContext {
-  const shape = shapesMap.get(id)
-  const parentGroupId = shape?.parentId || undefined
-  const parentType = parentGroupId ? shapesMap.get(parentGroupId)?.type : undefined
-  const isGroupChild = !!parentGroupId && (parentType === 'group' || parentType === 'frame')
-  const siblings = isGroupChild && parentType === 'group' ? shapes.filter((s) => s.parentId === parentGroupId && s.id !== id) : []
-  const children = (shape?.type === 'group' || shape?.type === 'frame') ? shapes.filter((s) => s.parentId === id) : []
-  return { shape, parentGroupId, isGroupChild, siblings, children }
-}
-
-function applyDragToGroupContext(
-  doc: Y.Doc, pageId: string, id: string,
-  newX: number, newY: number, dx: number, dy: number,
-  ctx: GroupContext,
-  shapesMapRef: Map<string, Shape>,
-  prevPositions: Map<string, { x: number; y: number }>
-) {
-  updateShape(doc, pageId, id, { x: newX, y: newY })
-
-  if (ctx.isGroupChild && ctx.parentGroupId) {
-    const parent = shapesMapRef.get(ctx.parentGroupId)
-    if (parent?.type === 'frame') {
-      const w = ctx.shape?.width || 0
-      const h = ctx.shape?.height || 0
-      const inside = newX >= parent.x && newY >= parent.y &&
-        newX + w <= parent.x + parent.width && newY + h <= parent.y + parent.height
-      if (!inside) {
-        updateShape(doc, pageId, id, { parentId: null })
-      }
-    } else {
-      for (const sib of ctx.siblings) {
-        updateShape(doc, pageId, sib.id, { x: sib.x + dx, y: sib.y + dy })
-      }
-      const parentPrev = prevPositions.get(ctx.parentGroupId)
-      if (parentPrev) {
-        updateShape(doc, pageId, ctx.parentGroupId, { x: parentPrev.x + dx, y: parentPrev.y + dy })
-      }
-    }
-  }
-
-  for (const child of ctx.children) {
-    updateShape(doc, pageId, child.id, { x: child.x + dx, y: child.y + dy })
-  }
-}
-
-function tryReparentIntoFrame(
-  doc: Y.Doc, pageId: string, id: string,
-  newX: number, newY: number,
-  ctx: GroupContext,
-  allShapes: Shape[]
-) {
-  if (ctx.isGroupChild && ctx.parentGroupId) {
-    // Already in a frame — don't reparent
-    return
-  }
-  const shape = ctx.shape
-  if (!shape || shape.type === 'frame') return
-
-  const w = shape.width || 0
-  const h = shape.height || 0
-  const cx = newX + w / 2
-  const cy = newY + h / 2
-
-  for (let fi = allShapes.length - 1; fi >= 0; fi--) {
-    const frame = allShapes[fi]
-    if (frame.type !== 'frame' || frame.id === id) continue
-    if (cx >= frame.x && cx <= frame.x + frame.width &&
-        cy >= frame.y && cy <= frame.y + frame.height) {
-      updateShape(doc, pageId, id, { parentId: frame.id })
-      const frameIdx = allShapes.findIndex((s) => s.id === frame.id)
-      if (frameIdx !== -1) {
-        reorderShape(doc, pageId, id, frameIdx + 1)
-      }
-      break
-    }
-  }
+/** Stage pointer position in page coordinates */
+function getPagePointer(stage: Konva.Stage): { x: number; y: number } | null {
+  const pos = stage.getPointerPosition()
+  if (!pos) return null
+  return stage.getAbsoluteTransform().copy().invert().point(pos)
 }
 
 export function SelectionOverlay({ stageRef }: Props) {
@@ -107,10 +62,8 @@ export function SelectionOverlay({ stageRef }: Props) {
   const selectedIds = useUIStore((s) => s.selectedIds)
   const { doc, activePageId } = useDocument()
   const shapes = useShapes()
-  const prevPositions = useRef<Map<string, { x: number; y: number }>>(new Map())
   const isDragging = useRef(false)
-  const altDragDuplicate = useRef(false)
-  const dragContext = useRef<GroupContext | null>(null)
+  const gestureRef = useRef<DragGesture | null>(null)
   const shapesRef = useRef(shapes)
 
   const shapesMap = useMemo(() => {
@@ -258,164 +211,222 @@ export function SelectionOverlay({ stageRef }: Props) {
   const onDragStart = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     const id = e.target.id()
     if (!id) return
+
+    // Transformer-synced secondary dragstarts join the active gesture; they
+    // must never reset shared state (that corrupted multi-select drags).
+    const active = gestureRef.current
+    if (active && !active.committed) {
+      active.nodeIds.add(id)
+      return
+    }
+
+    const stage = stageRef.current
+    if (!stage) return
+    const allShapes = shapesRef.current
+    const shape = shapesMapRef.current.get(id)
+    if (!shape) return
+    const pointer = getPagePointer(stage) ?? { x: shape.x, y: shape.y }
+
+    const selection = useUIStore.getState().selectedIds
+    const isSelected = selection.has(id)
+
+    // Dragging an unselected child whose selected ancestor is a group moves
+    // the whole group (groups have no spatial boundary to escape). Frame
+    // children always move alone — exiting is handled by the symmetric
+    // center-point rule at dragend.
+    let entourage: DragGesture['entourage'] = null
+    let roots: Shape[]
+    if (isSelected) {
+      roots = selectionRoots(allShapes, selection)
+      if (!roots.some((r) => r.id === id)) roots = [shape]
+    } else {
+      const ancestors = getAncestors(allShapes, id)
+      const selectedGroupAncestor = [...ancestors].reverse().find(
+        (a) => selection.has(a.id) && a.type === 'group'
+      )
+      if (selectedGroupAncestor) {
+        roots = [selectedGroupAncestor]
+        // Imperative peers: the group's direct children besides the grabbed
+        // branch (each Konva node carries its own subtree). When the grabbed
+        // node sits deeper, peers still cover everything outside its branch.
+        const grabbedBranch = ancestors.length > 0
+          ? [...ancestors].reverse().find((a) => a.parentId === selectedGroupAncestor.id)?.id ?? id
+          : id
+        const branchTop = shape.parentId === selectedGroupAncestor.id ? id : grabbedBranch
+        entourage = {
+          rootId: selectedGroupAncestor.id,
+          peerIds: getChildren(allShapes, selectedGroupAncestor.id)
+            .filter((c) => c.id !== branchTop)
+            .map((c) => c.id),
+        }
+      } else {
+        roots = [shape]
+      }
+    }
+
+    const movedIds = new Set<string>()
+    const startPositions = new Map<string, { x: number; y: number }>()
+    const rootShapesAtStart = new Map<string, Shape>()
+    for (const r of roots) {
+      movedIds.add(r.id)
+      startPositions.set(r.id, { x: r.x, y: r.y })
+      rootShapesAtStart.set(r.id, r)
+      for (const d of getDescendants(allShapes, r.id)) {
+        movedIds.add(d.id)
+        startPositions.set(d.id, { x: d.x, y: d.y })
+      }
+    }
+    // The grabbed node may not be a root in the entourage case
+    if (!startPositions.has(id)) startPositions.set(id, { x: shape.x, y: shape.y })
+
     isDragging.current = true
-    altDragDuplicate.current = false
-
-    // Option+drag: mark for duplication on drag end (defer to avoid re-render during drag)
-    if (e.evt.altKey) {
-      const { selectedIds } = useUIStore.getState()
-      if (selectedIds.has(id)) {
-        altDragDuplicate.current = true
-      }
+    gestureRef.current = {
+      primaryId: id,
+      pointerStart: pointer,
+      nodeIds: new Set([id]),
+      roots: roots.map((r) => r.id),
+      entourage,
+      startPositions,
+      rootShapesAtStart,
+      allShapesAtStart: allShapes,
+      movedIds,
+      alt: e.evt.altKey && isSelected,
+      committed: false,
+      lastDelta: { x: 0, y: 0 },
     }
-
-    let ctx = resolveGroupContext(shapesMapRef.current, shapesRef.current, id)
-
-    // If this child is directly selected inside a frame,
-    // treat it as independent — don't move siblings/parent.
-    // Group children always move the whole group together.
-    const { selectedIds: currentSelection } = useUIStore.getState()
-    const isDirectlySelected = currentSelection.has(id)
-    const parentShape = ctx.parentGroupId ? shapesMapRef.current.get(ctx.parentGroupId) : undefined
-    if (isDirectlySelected && ctx.isGroupChild && parentShape?.type === 'frame') {
-      ctx = { ...ctx, isGroupChild: false, siblings: [] }
-    }
-
-    dragContext.current = ctx
-    if (!ctx.shape) return
-
-    prevPositions.current.clear()
-    prevPositions.current.set(id, { x: ctx.shape.x, y: ctx.shape.y })
-
-    if (ctx.isGroupChild && ctx.parentGroupId) {
-      for (const sib of ctx.siblings) {
-        prevPositions.current.set(sib.id, { x: sib.x, y: sib.y })
-      }
-      const parent = shapesMapRef.current.get(ctx.parentGroupId)
-      if (parent) prevPositions.current.set(ctx.parentGroupId, { x: parent.x, y: parent.y })
-    }
-
-    for (const child of ctx.children) {
-      prevPositions.current.set(child.id, { x: child.x, y: child.y })
-    }
-  }, [])
+  }, [stageRef])
 
   const onDragMove = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
+    const g = gestureRef.current
+    if (!g || g.committed) return
     const node = e.target
     const id = node.id()
     if (!id) return
     const stage = stageRef.current
     if (!stage) return
 
-    const prev = prevPositions.current.get(id)
-    if (!prev) return
-
-    // Snap to grid + rulers
-    const snapped = snapWithRulers(node.x(), node.y(), shapesRef.current)
-    const snappedX = snapped.x
-    const snappedY = snapped.y
-
-    node.x(snappedX)
-    node.y(snappedY)
-
-    // Sync frame title position after snapping (title is a sibling Text node,
-    // not a child, so it doesn't move automatically with the group)
-    const titleNode = stage.findOne(`.frame-title-${id}`)
-    if (titleNode) {
-      titleNode.x(snappedX)
-      titleNode.y(snappedY)
-    }
-
-    const dx = snappedX - prev.x
-    const dy = snappedY - prev.y
-
-    const ctx = dragContext.current
-
-    // Batch all Yjs writes into a single transaction
-    doc.transact(() => {
-      updateShape(doc, activePageId, id, { x: snappedX, y: snappedY })
-
-      if (ctx) {
-        for (const child of ctx.children) {
-          const childPrev = prevPositions.current.get(child.id)
-          if (childPrev) {
-            updateShape(doc, activePageId, child.id, { x: childPrev.x + dx, y: childPrev.y + dy })
-          }
+    // Delta comes from the pointer, snapped once against the primary node —
+    // identical for every synced node, so multi-select never tears apart.
+    if (id === g.primaryId) {
+      const pointer = getPagePointer(stage)
+      if (pointer) {
+        const primaryStart = g.startPositions.get(g.primaryId)!
+        const raw = {
+          x: primaryStart.x + (pointer.x - g.pointerStart.x),
+          y: primaryStart.y + (pointer.y - g.pointerStart.y),
         }
-      }
-    }, 'local')
-
-    if (ctx) {
-      if (ctx.isGroupChild) {
-        for (const sib of ctx.siblings) {
-          const sibNode = stage.findOne(`#${sib.id}`)
-          const sibPrev = prevPositions.current.get(sib.id)
-          if (sibNode && sibPrev) {
-            sibNode.x(sibPrev.x + dx)
-            sibNode.y(sibPrev.y + dy)
-          }
-        }
-      }
-
-      for (const child of ctx.children) {
-        const childPrev = prevPositions.current.get(child.id)
-        if (childPrev) {
-          const childNode = stage.findOne(`#${child.id}`)
-          if (childNode) {
-            childNode.x(childPrev.x + dx)
-            childNode.y(childPrev.y + dy)
-          }
-        }
+        const snapped = snapWithRulers(raw.x, raw.y, shapesRef.current)
+        g.lastDelta = { x: snapped.x - primaryStart.x, y: snapped.y - primaryStart.y }
       }
     }
-  }, [stageRef, doc, activePageId])
 
-  const onDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
-    const node = e.target
-    const id = node.id()
-    if (!id) return
+    // Each node positions itself in its own event — Konva's internal drag
+    // update can never clobber a cross-node write.
+    const start = g.startPositions.get(id)
+    if (start) {
+      node.x(start.x + g.lastDelta.x)
+      node.y(start.y + g.lastDelta.y)
+      // Frame titles are sibling Text nodes and don't follow automatically
+      const titleNode = stage.findOne(`.frame-title-${id}`)
+      if (titleNode) {
+        titleNode.x(start.x + g.lastDelta.x)
+        titleNode.y(start.y + g.lastDelta.y)
+      }
+    }
 
-    const newX = node.x()
-    const newY = node.y()
-    const prev = prevPositions.current.get(id)
-    const dx = prev ? newX - prev.x : 0
-    const dy = prev ? newY - prev.y : 0
+    if (id !== g.primaryId) return
 
-    const ctx = dragContext.current || resolveGroupContext(shapesMapRef.current, shapesRef.current, id)
+    // Entourage peers move imperatively; their Konva subtrees follow for free
+    if (g.entourage) {
+      for (const peerId of g.entourage.peerIds) {
+        const peerStart = g.startPositions.get(peerId)
+        const peerNode = stage.findOne(`#${peerId}`)
+        if (peerStart && peerNode) {
+          peerNode.x(peerStart.x + g.lastDelta.x)
+          peerNode.y(peerStart.y + g.lastDelta.y)
+        }
+        const peerTitle = stage.findOne(`.frame-title-${peerId}`)
+        const ps = g.startPositions.get(peerId)
+        if (peerTitle && ps) {
+          peerTitle.x(ps.x + g.lastDelta.x)
+          peerTitle.y(ps.y + g.lastDelta.y)
+        }
+      }
+      return
+    }
+
+    // Live drop-target highlight, evaluated from the grabbed root's center
+    const primaryRoot = g.rootShapesAtStart.get(g.roots.includes(id) ? id : g.roots[0])
+    if (primaryRoot) {
+      const center = {
+        x: primaryRoot.x + (primaryRoot.width || 0) / 2 + g.lastDelta.x,
+        y: primaryRoot.y + (primaryRoot.height || 0) / 2 + g.lastDelta.y,
+      }
+      const target = findDropFrame(g.allShapesAtStart, center, g.movedIds)
+      useUIStore.getState().setDropTargetFrameId(target?.id ?? null)
+    }
+  }, [stageRef])
+
+  const onDragEnd = useCallback(() => {
+    const g = gestureRef.current
+    if (!g || g.committed) return
+    g.committed = true
+
+    // Isolate this gesture as its own undo step regardless of capture timing
+    useHistoryStore.getState().undoManager?.stopCapturing()
 
     doc.transact(() => {
-      // Option+drag: create duplicates at the original positions
-      if (altDragDuplicate.current && prev) {
-        const { selectedIds } = useUIStore.getState()
-        selectedIds.forEach((shapeId) => {
-          const shape = shapesMapRef.current.get(shapeId)
-          if (!shape) return
-          const origPos = prevPositions.current.get(shapeId)
-          if (!origPos) return
-          const { id: _id, ...rest } = shape
-          addShape(doc, activePageId, shape.type, {
-            ...rest,
-            x: origPos.x,
-            y: origPos.y,
-          } as Partial<Shape>)
+      // Alt-drag: duplicates stay at the start positions with original parent
+      // and z (deep clones — frame copies keep their children); the grabbed
+      // originals move on. Yjs still holds start positions here, so offset 0.
+      if (g.alt) {
+        duplicateShapes(doc, activePageId, new Set(g.roots), 0)
+      }
+
+      for (const [sid, start] of g.startPositions) {
+        updateShape(doc, activePageId, sid, {
+          x: start.x + g.lastDelta.x,
+          y: start.y + g.lastDelta.y,
         })
       }
 
-      applyDragToGroupContext(
-        doc, activePageId, id, newX, newY, dx, dy,
-        ctx, shapesMapRef.current, prevPositions.current
-      )
-
-      // Drop into frame (only for normal drag, not alt-drag duplicates)
-      if (!altDragDuplicate.current) {
-        tryReparentIntoFrame(doc, activePageId, id, newX, newY, ctx, shapesRef.current)
+      // Reparent each moved root by the center-point rule (symmetric for
+      // enter and exit; frame→frame works in one gesture). Same parent →
+      // no z write at all. Group parents are only left when the drop lands
+      // in a frame — groups have no spatial boundary.
+      if (!g.entourage) {
+        const byId = new Map(g.allShapesAtStart.map((s) => [s.id, s]))
+        const byDest = new Map<string | null, string[]>()
+        for (const rootId of g.roots) {
+          const startShape = g.rootShapesAtStart.get(rootId)
+          if (!startShape) continue
+          const center = {
+            x: startShape.x + (startShape.width || 0) / 2 + g.lastDelta.x,
+            y: startShape.y + (startShape.height || 0) / 2 + g.lastDelta.y,
+          }
+          const currentParent = startShape.parentId ?? null
+          let newParent = findDropFrame(g.allShapesAtStart, center, g.movedIds)?.id ?? null
+          if (newParent === null && currentParent && byId.get(currentParent)?.type === 'group') {
+            newParent = currentParent
+          }
+          if (newParent !== currentParent) {
+            const list = byDest.get(newParent) || []
+            list.push(rootId)
+            byDest.set(newParent, list)
+          }
+        }
+        for (const [dest, ids] of byDest) {
+          moveShapes(
+            doc, activePageId, ids,
+            dest ? { kind: 'inside', containerId: dest } : { kind: 'root-top' }
+          )
+        }
       }
     }, 'local')
 
-    altDragDuplicate.current = false
+    useUIStore.getState().setDropTargetFrameId(null)
+    gestureRef.current = null
     isDragging.current = false
-    dragContext.current = null
-    prevPositions.current.clear()
   }, [doc, activePageId])
 
   useEffect(() => {

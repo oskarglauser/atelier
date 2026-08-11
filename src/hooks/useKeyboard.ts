@@ -3,7 +3,8 @@ import { useUIStore } from '../store/uiStore'
 import { useHistoryStore } from '../store/historyStore'
 import { useViewportStore } from '../store/viewportStore'
 import { useDocument } from './useDocument'
-import { addShape, deleteShapes, duplicateShapes, updateShape, groupShapes, ungroupShapes, getAllShapes } from '../document/operations'
+import { addShape, deleteShapes, duplicateShapes, updateShape, groupShapes, ungroupShapes, getAllShapes, cloneSubtrees, insertShapes } from '../document/operations'
+import { selectionRoots, getDescendants, resolveParentForBounds } from '../document/hierarchy'
 import { getShapesBounds } from '../utils/math'
 
 import { NUDGE_AMOUNT, NUDGE_AMOUNT_SHIFT } from '../utils/constants'
@@ -11,6 +12,18 @@ import type { ToolType } from '../types/tools'
 import type { Shape } from '../types/document'
 
 let clipboardShapes: Shape[] = []
+let clipboardRootIds: string[] = []
+
+/** Selection roots plus all their descendants, in array order */
+function captureSelection(all: Shape[], selectedIds: Set<string>): { shapes: Shape[]; rootIds: string[] } {
+  const roots = selectionRoots(all, selectedIds)
+  const memberIds = new Set<string>()
+  for (const r of roots) {
+    memberIds.add(r.id)
+    for (const d of getDescendants(all, r.id)) memberIds.add(d.id)
+  }
+  return { shapes: all.filter((s) => memberIds.has(s.id)), rootIds: roots.map((r) => r.id) }
+}
 
 const toolShortcuts: Record<string, ToolType> = {
   v: 'select',
@@ -77,10 +90,12 @@ export function useKeyboard() {
         return
       }
 
-      // Copy: Cmd+C
+      // Copy: Cmd+C — captures whole subtrees so frames keep their children
       if (meta && e.key === 'c' && !e.shiftKey) {
         if (selectedIds.size > 0) {
-          clipboardShapes = getAllShapes(doc, activePageId).filter((s) => selectedIds.has(s.id))
+          const captured = captureSelection(getAllShapes(doc, activePageId), selectedIds)
+          clipboardShapes = captured.shapes
+          clipboardRootIds = captured.rootIds
         }
         return
       }
@@ -88,14 +103,17 @@ export function useKeyboard() {
       // Cut: Cmd+X
       if (meta && e.key === 'x') {
         if (selectedIds.size > 0) {
-          clipboardShapes = getAllShapes(doc, activePageId).filter((s) => selectedIds.has(s.id))
+          const captured = captureSelection(getAllShapes(doc, activePageId), selectedIds)
+          clipboardShapes = captured.shapes
+          clipboardRootIds = captured.rootIds
           deleteShapes(doc, activePageId, selectedIds)
           clearSelection()
         }
         return
       }
 
-      // Paste: Cmd+V
+      // Paste: Cmd+V — deep clones with fresh ids; each pasted root's parent
+      // is re-resolved at the pasted position (the copied parentId is stale)
       if (meta && e.key === 'v') {
         if (clipboardShapes.length > 0) {
           e.preventDefault()
@@ -103,23 +121,27 @@ export function useKeyboard() {
           const centerX = (window.innerWidth / 2 - offsetX) / zoom
           const centerY = (window.innerHeight / 2 - offsetY) / zoom
 
-          // Calculate clipboard bounds center
           const { minX, minY, maxX, maxY } = getShapesBounds(clipboardShapes)
-          const clipCenterX = (minX + maxX) / 2
-          const clipCenterY = (minY + maxY) / 2
-          const offsetDx = centerX - clipCenterX + 20
-          const offsetDy = centerY - clipCenterY + 20
+          const offsetDx = centerX - (minX + maxX) / 2 + 20
+          const offsetDy = centerY - (minY + maxY) / 2 + 20
 
-          const newIds: string[] = []
-          for (const original of clipboardShapes) {
-            const shape = addShape(doc, activePageId, original.type, {
-              ...original,
-              x: original.x + offsetDx,
-              y: original.y + offsetDy,
-            })
-            newIds.push(shape.id)
-          }
-          setSelectedIds(new Set(newIds))
+          useHistoryStore.getState().undoManager?.stopCapturing()
+          const newRootIds: string[] = []
+          doc.transact(() => {
+            const current = getAllShapes(doc, activePageId)
+            for (const sub of cloneSubtrees(clipboardShapes, clipboardRootIds, offsetDx, offsetDy)) {
+              const rootClone = sub.clones.find((c) => c.id === sub.rootCloneId)!
+              rootClone.parentId = resolveParentForBounds(current, {
+                x: rootClone.x,
+                y: rootClone.y,
+                width: rootClone.width || 0,
+                height: rootClone.height || 0,
+              })
+              insertShapes(doc, activePageId, sub.clones)
+              newRootIds.push(rootClone.id)
+            }
+          }, 'local')
+          setSelectedIds(new Set(newRootIds))
         }
         return
       }
@@ -178,19 +200,18 @@ export function useKeyboard() {
         e.preventDefault()
         const dx = e.key === 'ArrowLeft' ? -nudge : e.key === 'ArrowRight' ? nudge : 0
         const dy = e.key === 'ArrowUp' ? -nudge : e.key === 'ArrowDown' ? nudge : 0
-        selectedIds.forEach((id) => {
-          const shapes = doc.getArray(`page:${activePageId}:shapes`)
-          for (let i = 0; i < shapes.length; i++) {
-            const map = shapes.get(i) as import('yjs').Map<unknown>
-            if (map.get('id') === id) {
-              updateShape(doc, activePageId, id, {
-                x: (map.get('x') as number) + dx,
-                y: (map.get('y') as number) + dy,
-              })
-              break
+        // Move selection roots together with their descendants — child
+        // coordinates are absolute, so nudging a frame must carry its contents
+        const all = getAllShapes(doc, activePageId)
+        const roots = selectionRoots(all, selectedIds)
+        doc.transact(() => {
+          for (const r of roots) {
+            updateShape(doc, activePageId, r.id, { x: r.x + dx, y: r.y + dy })
+            for (const d of getDescendants(all, r.id)) {
+              updateShape(doc, activePageId, d.id, { x: d.x + dx, y: d.y + dy })
             }
           }
-        })
+        }, 'local')
         return
       }
 
@@ -228,10 +249,12 @@ export function useKeyboard() {
                 w *= scale
                 h *= scale
               }
+              const current = getAllShapes(doc, activePageId)
+              const bounds = { x: centerX - w / 2, y: centerY - h / 2, width: w, height: h }
               const shape = addShape(doc, activePageId, 'image', {
-                x: centerX - w / 2, y: centerY - h / 2,
-                width: w, height: h,
+                ...bounds,
                 src,
+                parentId: resolveParentForBounds(current, bounds),
               })
               useUIStore.getState().setSelectedIds(new Set([shape.id]))
             }

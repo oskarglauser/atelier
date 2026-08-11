@@ -13,12 +13,14 @@ import { snapWithRulers } from '../utils/snapToRulers'
 import { addShape, updateShape, reorderShape, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
 import { performBooleanOp } from '../operations/booleanOps'
 import { textToOutlines } from '../operations/textToOutlines'
-import type { Shape, TextShape, FrameShape } from '../types/document'
+import type { Shape, TextShape } from '../types/document'
+import { resolveParentForBounds, isFullyContained } from '../document/hierarchy'
 import { simplifyPath, pointsToSvgPath, getPointsBounds } from '../utils/path'
 import { getShapesBounds, isNearPoint } from '../utils/math'
 import { shapesToSvgString } from '../utils/exportShape'
 import { ShapeRenderer } from './ShapeRenderer'
 import { SelectionOverlay } from './SelectionOverlay'
+import { DropTargetHighlight } from './DropTargetHighlight'
 import { SelectionBox } from './SelectionBox'
 import { Grid } from './Grid'
 import { InlineTextEditor } from './InlineTextEditor'
@@ -26,31 +28,6 @@ import { InlineFrameTitleEditor } from './InlineFrameTitleEditor'
 import { PenToolOverlay } from './PenToolOverlay'
 import { ContextMenu, type MenuEntry } from '../ui/ContextMenu'
 import { Copy, Clipboard, Trash2, CopyPlus, ArrowUpToLine, ArrowDownToLine, Group, Ungroup, Merge, Minus as MinusIcon, SquaresIntersect, Diff, TypeOutline, ImageIcon, FileCode } from 'lucide-react'
-
-function findContainingFrame(shapes: Shape[], x: number, y: number, w: number, h: number): FrameShape | null {
-  // Find the smallest frame that fully contains the shape bounds
-  let best: FrameShape | null = null
-  for (const s of shapes) {
-    if (s.type !== 'frame') continue
-    const f = s as FrameShape
-    if (x >= f.x && y >= f.y && x + w <= f.x + f.width && y + h <= f.y + f.height) {
-      if (!best || (f.width * f.height < best.width * best.height)) {
-        best = f
-      }
-    }
-  }
-  return best
-}
-
-function withFrameParent(shapes: Shape[], overrides: Partial<Shape>): Partial<Shape> {
-  const x = (overrides.x as number) || 0
-  const y = (overrides.y as number) || 0
-  const w = (overrides.width as number) || 0
-  const h = (overrides.height as number) || 0
-  const frame = findContainingFrame(shapes, x, y, w, h)
-  if (!frame) return overrides
-  return { ...overrides, parentId: frame.id }
-}
 
 export function Canvas() {
   const stageRef = useRef<Konva.Stage>(null)
@@ -181,21 +158,20 @@ export function Canvas() {
       d += ' Z'
     }
 
+    const penBounds = { x: minX, y: minY, width: maxX - minX || 1, height: maxY - minY || 1 }
     const newShape = addShape(doc, activePageId, 'path', {
-      x: minX,
-      y: minY,
-      width: maxX - minX || 1,
-      height: maxY - minY || 1,
+      ...penBounds,
       pathData: d,
       closed,
       fill: closed ? '#000000' : '',
       stroke: '#000000',
       strokeWidth: 2,
+      parentId: resolveParentForBounds(shapes, penBounds),
     })
     useUIStore.getState().setSelectedIds(new Set([newShape.id]))
     penStore.reset()
     setActiveTool('select')
-  }, [penStore, doc, activePageId, setActiveTool])
+  }, [penStore, doc, activePageId, setActiveTool, shapes])
 
   // Find the topmost container (group/frame) parent for a shape
   const getContainerParent = useCallback((startId: string): string | null => {
@@ -301,7 +277,12 @@ export function Canvas() {
     }
 
     if (activeTool === 'text') {
-      const newShape = addShape(doc, activePageId, 'text', withFrameParent(shapes, { x: pos.x, y: pos.y }))
+      // 300×36 = the schema's default text bounds
+      const newShape = addShape(doc, activePageId, 'text', {
+        x: pos.x,
+        y: pos.y,
+        parentId: resolveParentForBounds(shapes, { x: pos.x, y: pos.y, width: 300, height: 36 }),
+      })
       setSelectedIds(new Set([newShape.id]))
       setEditingTextId(newShape.id)
       setActiveTool('select')
@@ -327,11 +308,15 @@ export function Canvas() {
               w *= scale
               h *= scale
             }
-            addShape(doc, activePageId, 'image', withFrameParent(shapes, {
+            // Resolve the parent against a fresh snapshot — the file dialog is
+            // async and the captured `shapes` may be stale by now
+            const current = getAllShapes(doc, activePageId)
+            addShape(doc, activePageId, 'image', {
               x: pos.x, y: pos.y,
               width: w, height: h,
               src,
-            }))
+              parentId: resolveParentForBounds(current, { x: pos.x, y: pos.y, width: w, height: h }),
+            })
           }
           img.src = src
         }
@@ -439,15 +424,15 @@ export function Canvas() {
         const simplified = simplifyPath(pts, 1.5)
         const { minX, minY, maxX, maxY } = getPointsBounds(simplified)
         const normalized = simplified.map((p) => ({ x: p.x - minX, y: p.y - minY }))
+        const freehandBounds = { x: minX, y: minY, width: maxX - minX || 1, height: maxY - minY || 1 }
         const newShape = addShape(doc, activePageId, 'path', {
-          x: minX, y: minY,
-          width: maxX - minX || 1,
-          height: maxY - minY || 1,
+          ...freehandBounds,
           pathData: pointsToSvgPath(normalized),
           closed: false,
           fill: '',
           stroke: '#000000',
           strokeWidth: 2,
+          parentId: resolveParentForBounds(shapes, freehandBounds),
         })
         setSelectedIds(new Set([newShape.id]))
       }
@@ -482,39 +467,47 @@ export function Canvas() {
           let newShape
 
           if (type === 'line') {
-            newShape = addShape(doc, activePageId, 'line', withFrameParent(shapes, {
+            newShape = addShape(doc, activePageId, 'line', {
               x: createStart.x,
               y: createStart.y,
               points: [0, 0, pos.x - createStart.x, pos.y - createStart.y],
               width,
               height,
-            }))
+              // Containment uses the normalized min corner, not the (possibly
+              // bottom-right) drag start the shape itself is anchored to
+              parentId: resolveParentForBounds(shapes, { x, y, width, height }),
+            })
           } else if (type !== 'frame') {
-            newShape = addShape(doc, activePageId, type, withFrameParent(shapes, { x, y, width, height }))
+            newShape = addShape(doc, activePageId, type, {
+              x, y, width, height,
+              parentId: resolveParentForBounds(shapes, { x, y, width, height }),
+            })
           } else {
-            newShape = addShape(doc, activePageId, type, { x, y, width, height })
-
-            // Find shapes fully inside the new frame and reparent them
+            // A frame drawn inside another frame nests into it
+            const frameParentId = resolveParentForBounds(shapes, { x, y, width, height })
+            // Adopt unlocked siblings at the same level that the drawn rect
+            // fully contains (full containment on purpose: the center rule
+            // would swallow half-overlapping neighbors)
             const enclosed = shapes.filter((s) =>
-              s.id !== newShape!.id && !s.parentId &&
-              s.x >= x && s.y >= y &&
-              s.x + s.width <= x + width && s.y + s.height <= y + height
+              (s.parentId ?? null) === frameParentId && !s.locked &&
+              isFullyContained(s, { x, y, width, height })
             )
-            if (enclosed.length > 0) {
-              // Find the lowest index among enclosed shapes so we insert the frame before them
-              const allCurrent = getAllShapes(doc, activePageId)
-              let lowestIndex = allCurrent.length
-              for (const s of enclosed) {
-                const idx = allCurrent.findIndex((c) => c.id === s.id)
-                if (idx >= 0 && idx < lowestIndex) lowestIndex = idx
-              }
-              doc.transact(() => {
-                reorderShape(doc, activePageId, newShape!.id, lowestIndex)
+            doc.transact(() => {
+              newShape = addShape(doc, activePageId, 'frame', { x, y, width, height, parentId: frameParentId })
+              if (enclosed.length > 0) {
+                // Insert the frame below its adoptees so they render on top of it
+                const allCurrent = getAllShapes(doc, activePageId)
+                let lowestIndex = allCurrent.length
                 for (const s of enclosed) {
-                  updateShape(doc, activePageId, s.id, { parentId: newShape!.id })
+                  const idx = allCurrent.findIndex((c) => c.id === s.id)
+                  if (idx >= 0 && idx < lowestIndex) lowestIndex = idx
                 }
-              }, 'local')
-            }
+                reorderShape(doc, activePageId, newShape.id, lowestIndex)
+                for (const s of enclosed) {
+                  updateShape(doc, activePageId, s.id, { parentId: newShape.id })
+                }
+              }
+            }, 'local')
           }
           if (newShape) setSelectedIds(new Set([newShape.id]))
         }
@@ -572,36 +565,56 @@ export function Canvas() {
   const handleBooleanOp = async (op: 'union' | 'subtract' | 'intersect' | 'exclude') => {
     const result = await performBooleanOp(selected, op)
     if (result) {
-      deleteShapes(doc, activePageId, selectedIds)
-      const shape = addShape(doc, activePageId, 'path', {
-        ...result,
-        closed: true,
-        fill: selected[0].fill,
-        stroke: selected[0].stroke,
-        strokeWidth: selected[0].strokeWidth,
-      })
-      setSelectedIds(new Set([shape.id]))
+      // Result takes the topmost input's parent and z position; one undo step
+      const topmost = selected[selected.length - 1]
+      const allBefore = getAllShapes(doc, activePageId)
+      const topIdx = allBefore.findIndex((s) => s.id === topmost.id)
+      const removedBelow = allBefore.filter((s, i) => i < topIdx && selectedIds.has(s.id)).length
+      let shape: Shape | null = null
+      doc.transact(() => {
+        deleteShapes(doc, activePageId, selectedIds)
+        shape = addShape(doc, activePageId, 'path', {
+          ...result,
+          closed: true,
+          fill: selected[0].fill,
+          stroke: selected[0].stroke,
+          strokeWidth: selected[0].strokeWidth,
+          parentId: topmost.parentId ?? null,
+        })
+        reorderShape(doc, activePageId, shape.id, Math.max(0, topIdx - removedBelow))
+      }, 'local')
+      if (shape) setSelectedIds(new Set([(shape as Shape).id]))
     }
   }
 
   const handleTextToOutlines = async () => {
+    // Await all conversions first — transactions must stay synchronous
+    const conversions: { source: TextShape; result: { pathData: string; width: number; height: number } }[] = []
     for (const s of selected) {
       if (s.type === 'text') {
         const result = await textToOutlines(s as TextShape)
-        if (result) {
-          addShape(doc, activePageId, 'path', {
-            x: s.x,
-            y: s.y,
-            ...result,
-            closed: true,
-            fill: s.fill,
-            stroke: s.stroke,
-            strokeWidth: s.strokeWidth,
-          })
-        }
+        if (result) conversions.push({ source: s as TextShape, result })
       }
     }
-    deleteShapes(doc, activePageId, selectedIds)
+    doc.transact(() => {
+      for (const { source, result } of conversions) {
+        const newShape = addShape(doc, activePageId, 'path', {
+          x: source.x,
+          y: source.y,
+          ...result,
+          closed: true,
+          fill: source.fill,
+          stroke: source.stroke,
+          strokeWidth: source.strokeWidth,
+          parentId: source.parentId ?? null,
+        })
+        // Slot the outline path in just below its source text
+        const live = getAllShapes(doc, activePageId)
+        const srcIdx = live.findIndex((s) => s.id === source.id)
+        if (srcIdx >= 0) reorderShape(doc, activePageId, newShape.id, srcIdx)
+      }
+      deleteShapes(doc, activePageId, selectedIds)
+    }, 'local')
     clearSelection()
   }
 
@@ -744,6 +757,7 @@ export function Canvas() {
           ))}
         </Layer>
         <Layer name="overlay-layer">
+          <DropTargetHighlight />
           <SelectionOverlay stageRef={stageRef} />
           <SelectionBox box={!isCreating ? selectionBox : null} />
           {isCreating && selectionBox && activeTool === 'ellipse' && (

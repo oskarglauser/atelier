@@ -59,9 +59,11 @@ export function createShapeData(type: ShapeType, overrides: Partial<Shape> = {})
   return {
     ...baseDefaults,
     ...typeDefaults[type],
-    id: generateId(),
-    type,
     name: `${typeName} ${shapeCounters[type]}`,
     ...overrides,
+    // id and type come after the spread so callers that pass a whole existing
+    // shape as overrides (paste, duplicate) can never reuse an existing id
+    id: generateId(),
+    type,
   } as Shape
 }

@@ -6,9 +6,7 @@ Atelier fills the gap between Illustrator and Figma for brand designers: a fast,
 
 **[Try it in your browser →](https://atelier-glauser.vercel.app)** — no install, no account.
 
-<!-- TODO: add a screenshot at docs/screenshot.png and uncomment this line:
 ![Atelier screenshot](docs/screenshot.png)
--->
 
 ## Highlights
 

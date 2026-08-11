@@ -5,6 +5,8 @@ interface UIState {
   activeTool: ToolType
   selectedIds: Set<string>
   hoveredId: string | null
+  /** Frame highlighted as the drop target during a canvas drag */
+  dropTargetFrameId: string | null
   editingTextId: string | null
   editingFrameTitleId: string | null
   isLeftPanelOpen: boolean
@@ -16,6 +18,7 @@ interface UIState {
   removeFromSelection: (id: string) => void
   clearSelection: () => void
   setHoveredId: (id: string | null) => void
+  setDropTargetFrameId: (id: string | null) => void
   setEditingTextId: (id: string | null) => void
   setEditingFrameTitleId: (id: string | null) => void
   toggleLeftPanel: () => void
@@ -26,6 +29,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeTool: 'select',
   selectedIds: new Set(),
   hoveredId: null,
+  dropTargetFrameId: null,
   editingTextId: null,
   editingFrameTitleId: null,
   isLeftPanelOpen: true,
@@ -45,6 +49,9 @@ export const useUIStore = create<UIState>((set) => ({
   }),
   clearSelection: () => set({ selectedIds: new Set() }),
   setHoveredId: (id) => set({ hoveredId: id }),
+  // No-ops when unchanged — called at pointer-move frequency during drags
+  setDropTargetFrameId: (id) =>
+    set((s) => (s.dropTargetFrameId === id ? s : { dropTargetFrameId: id })),
   setEditingTextId: (id) => set({ editingTextId: id }),
   setEditingFrameTitleId: (id) => set({ editingFrameTitleId: id }),
   toggleLeftPanel: () => set((s) => ({ isLeftPanelOpen: !s.isLeftPanelOpen })),

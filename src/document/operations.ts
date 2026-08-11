@@ -2,6 +2,15 @@ import * as Y from 'yjs'
 import type { Shape, ShapeType } from '../types/document'
 import { createShapeData } from './schema'
 import { getShapesArray } from './createDoc'
+import {
+  buildShapeIndex,
+  findDropFrame,
+  getDescendants,
+  getShapeCenter,
+  getSubtreeTopIndex,
+  isContainer,
+  selectionRoots,
+} from './hierarchy'
 
 /** Keys whose values are object arrays stored as JSON strings in Yjs */
 const OBJECT_ARRAY_KEYS = new Set(['rulers', 'exports'])
@@ -123,30 +132,184 @@ export function reorderShape(doc: Y.Doc, pageId: string, id: string, newIndex: n
   }, _origin)
 }
 
-export function duplicateShapes(doc: Y.Doc, pageId: string, ids: Set<string>, offset = 10, _origin = 'local'): string[] {
-  const shapes = getShapesArray(doc, pageId)
-  const newIds: string[] = []
+// --- Reparent + z-order primitive ---
+
+export type MoveDestination =
+  | { kind: 'inside'; containerId: string }   // top of the container's children
+  | { kind: 'above-anchor'; anchorId: string } // array index idx(anchor)+1; parentId = anchor.parentId
+  | { kind: 'below-anchor'; anchorId: string } // array index idx(anchor);   parentId = anchor.parentId
+  | { kind: 'root-top' }                      // end of array, parentId = null
+  | { kind: 'root-bottom' }                   // index 0, parentId = null
+
+/**
+ * Move shapes to a new parent and/or z position in one transaction.
+ * The single primitive behind canvas reparenting and layers-panel drops.
+ *
+ * Only the moved roots' Y.Maps are relocated; their descendants keep their
+ * array slots (renderers only care about relative order among siblings).
+ * Returns false (writing nothing) when the destination is invalid — e.g.
+ * inside the moved subtree itself (cycle guard) or a missing anchor.
+ */
+export function moveShapes(doc: Y.Doc, pageId: string, ids: string[], dest: MoveDestination, _origin = 'local'): boolean {
+  const shapesArr = getShapesArray(doc, pageId)
+  const all = getAllShapes(doc, pageId)
+  const index = buildShapeIndex(all)
+
+  const roots = selectionRoots(all, new Set(ids))
+  if (roots.length === 0) return false
+
+  const movedIds = new Set<string>()
+  for (const r of roots) {
+    movedIds.add(r.id)
+    for (const d of getDescendants(all, r.id)) movedIds.add(d.id)
+  }
+
+  let newParentId: string | null = null
+  switch (dest.kind) {
+    case 'inside': {
+      const container = index.byId.get(dest.containerId)
+      if (!container || !isContainer(container)) return false
+      newParentId = dest.containerId
+      break
+    }
+    case 'above-anchor':
+    case 'below-anchor': {
+      const anchor = index.byId.get(dest.anchorId)
+      if (!anchor || movedIds.has(dest.anchorId)) return false
+      newParentId = anchor.parentId ?? null
+      break
+    }
+    default:
+      newParentId = null
+  }
+  if (newParentId && movedIds.has(newParentId)) return false
+
   doc.transact(() => {
-    const toInsert: { index: number; map: Y.Map<unknown> }[] = []
-    for (let i = 0; i < shapes.length; i++) {
-      const map = shapes.get(i) as Y.Map<unknown>
-      if (ids.has(map.get('id') as string)) {
-        const original = yMapToShape(map)
-        const duplicate = createShapeData(original.type, {
-          ...original,
-          x: original.x + offset,
-          y: original.y + offset,
-        } as Partial<Shape>)
-        newIds.push(duplicate.id)
-        toInsert.push({ index: i, map: shapeToYMap(duplicate) })
+    // Pull the moved roots out (descending index), keeping clones in ascending
+    // original order so the inserted block preserves their relative z.
+    const rootIdSet = new Set(roots.map((r) => r.id))
+    const clones: Shape[] = []
+    for (let i = shapesArr.length - 1; i >= 0; i--) {
+      const map = shapesArr.get(i) as Y.Map<unknown>
+      if (rootIdSet.has(map.get('id') as string)) {
+        clones.unshift(yMapToShape(map))
+        shapesArr.delete(i, 1)
       }
     }
-    // Insert in reverse order so indices stay valid
-    for (let j = toInsert.length - 1; j >= 0; j--) {
-      shapes.insert(toInsert[j].index + 1, [toInsert[j].map])
+
+    // Compute the insertion index on the live post-delete array by anchor id —
+    // never from pre-delete numeric indexes.
+    const live = getAllShapes(doc, pageId)
+    let insertAt: number
+    switch (dest.kind) {
+      case 'inside':
+        insertAt = getSubtreeTopIndex(live, dest.containerId) + 1
+        break
+      case 'above-anchor':
+        insertAt = live.findIndex((s) => s.id === dest.anchorId) + 1
+        break
+      case 'below-anchor':
+        insertAt = live.findIndex((s) => s.id === dest.anchorId)
+        break
+      case 'root-top':
+        insertAt = live.length
+        break
+      case 'root-bottom':
+        insertAt = 0
+        break
+    }
+    if (insertAt < 0) insertAt = live.length
+
+    const maps = clones.map((c) => shapeToYMap({ ...c, parentId: newParentId } as Shape))
+    shapesArr.insert(Math.min(insertAt, shapesArr.length), maps)
+  }, _origin)
+  return true
+}
+
+// --- Deep cloning ---
+
+export interface ClonedSubtree {
+  sourceRootId: string
+  rootCloneId: string
+  /** Clones in source array order, root included; internal parentIds remapped */
+  clones: Shape[]
+}
+
+/**
+ * Deep-clone whole subtrees with fresh ids. parentIds pointing inside a cloned
+ * subtree are remapped to the clone ids; the root clone keeps its original
+ * parentId (callers decide whether to re-resolve it). Pure — writes nothing.
+ */
+export function cloneSubtrees(allShapes: Shape[], rootIds: string[], dx = 0, dy = 0): ClonedSubtree[] {
+  return rootIds.map((rootId) => {
+    const memberIds = new Set([rootId, ...getDescendants(allShapes, rootId).map((d) => d.id)])
+    const members = allShapes.filter((s) => memberIds.has(s.id))
+    const idMap = new Map<string, string>()
+    const clones = members.map((s) => {
+      const clone = createShapeData(s.type, { ...s, x: s.x + dx, y: s.y + dy } as Partial<Shape>)
+      idMap.set(s.id, clone.id)
+      return clone
+    })
+    for (const c of clones) {
+      if (c.parentId && idMap.has(c.parentId)) {
+        c.parentId = idMap.get(c.parentId)!
+      }
+    }
+    return { sourceRootId: rootId, rootCloneId: idMap.get(rootId)!, clones }
+  })
+}
+
+export function duplicateShapes(doc: Y.Doc, pageId: string, ids: Set<string>, offset = 10, _origin = 'local'): string[] {
+  const all = getAllShapes(doc, pageId)
+  const roots = selectionRoots(all, ids)
+  if (roots.length === 0) return []
+
+  const shapesArr = getShapesArray(doc, pageId)
+  const newRootIds: string[] = []
+
+  // Plan insertions from the initial snapshot; process in descending index
+  // order so earlier (higher) insertions don't shift later ones.
+  const jobs = roots
+    .map((root) => ({
+      root,
+      insertAt: getSubtreeTopIndex(all, root.id) + 1,
+      subtree: cloneSubtrees(all, [root.id], offset, offset)[0],
+    }))
+    .sort((a, b) => b.insertAt - a.insertAt)
+
+  doc.transact(() => {
+    for (const job of jobs) {
+      const rootClone = job.subtree.clones.find((c) => c.id === job.subtree.rootCloneId)!
+      // Keep the original parent unless the offset moved the duplicate's
+      // center outside that frame — then re-resolve at the new position.
+      if (rootClone.parentId) {
+        const parent = all.find((s) => s.id === rootClone.parentId)
+        const center = getShapeCenter(rootClone)
+        const stillInside =
+          !parent || parent.type !== 'frame'
+            ? true
+            : center.x >= parent.x &&
+              center.x <= parent.x + parent.width &&
+              center.y >= parent.y &&
+              center.y <= parent.y + parent.height
+        if (!stillInside) {
+          const exclude = new Set([job.root.id, ...getDescendants(all, job.root.id).map((d) => d.id)])
+          rootClone.parentId = findDropFrame(all, center, exclude)?.id ?? null
+        }
+      }
+      shapesArr.insert(Math.min(job.insertAt, shapesArr.length), job.subtree.clones.map(shapeToYMap))
+      newRootIds.push(rootClone.id)
     }
   }, _origin)
-  return newIds
+  return newRootIds
+}
+
+/** Insert fully prepared shapes verbatim (ids preserved) at the top of the page. */
+export function insertShapes(doc: Y.Doc, pageId: string, newShapes: Shape[], _origin = 'local') {
+  const shapes = getShapesArray(doc, pageId)
+  doc.transact(() => {
+    shapes.push(newShapes.map(shapeToYMap))
+  }, _origin)
 }
 
 export function getAllShapes(doc: Y.Doc, pageId: string): Shape[] {
@@ -162,13 +325,19 @@ export function getAllShapes(doc: Y.Doc, pageId: string): Shape[] {
 
 export function groupShapes(doc: Y.Doc, pageId: string, ids: Set<string>, _origin = 'local'): string {
   const allShapes = getAllShapes(doc, pageId)
-  const selected = allShapes.filter((s) => ids.has(s.id))
-  if (selected.length < 2) return ''
+  // Group only the top-most selected shapes — a selected child of another
+  // selected container stays inside its container.
+  const roots = selectionRoots(allShapes, ids)
+  if (roots.length < 2) return ''
 
-  const minX = Math.min(...selected.map((s) => s.x))
-  const minY = Math.min(...selected.map((s) => s.y))
-  const maxX = Math.max(...selected.map((s) => s.x + s.width))
-  const maxY = Math.max(...selected.map((s) => s.y + s.height))
+  const minX = Math.min(...roots.map((s) => s.x))
+  const minY = Math.min(...roots.map((s) => s.y))
+  const maxX = Math.max(...roots.map((s) => s.x + s.width))
+  const maxY = Math.max(...roots.map((s) => s.y + s.height))
+
+  // The group inherits the members' shared parent (e.g. grouping inside a
+  // frame keeps everything in the frame); mixed parents fall back to root.
+  const sharedParentId = roots.every((r) => r.parentId === roots[0].parentId) ? roots[0].parentId : null
 
   const group = createShapeData('group', {
     x: minX,
@@ -178,19 +347,23 @@ export function groupShapes(doc: Y.Doc, pageId: string, ids: Set<string>, _origi
     fill: '',
     stroke: '',
     strokeWidth: 0,
+    parentId: sharedParentId,
   })
+
+  const index = buildShapeIndex(allShapes)
+  const topIdx = Math.max(...roots.map((r) => index.indexOf.get(r.id) ?? 0))
+  const rootIds = new Set(roots.map((r) => r.id))
 
   const shapes = getShapesArray(doc, pageId)
   doc.transact(() => {
-    // Set parentId on children
+    // Insert the group just above its topmost member (not at global top)
+    shapes.insert(Math.min(topIdx + 1, shapes.length), [shapeToYMap(group)])
     for (let i = 0; i < shapes.length; i++) {
       const map = shapes.get(i) as Y.Map<unknown>
-      if (ids.has(map.get('id') as string)) {
+      if (rootIds.has(map.get('id') as string)) {
         map.set('parentId', group.id)
       }
     }
-    // Add group shape
-    shapes.push([shapeToYMap(group)])
   }, _origin)
 
   return group.id
@@ -198,13 +371,19 @@ export function groupShapes(doc: Y.Doc, pageId: string, ids: Set<string>, _origi
 
 export function ungroupShapes(doc: Y.Doc, pageId: string, groupIds: Set<string>, _origin = 'local') {
   const shapes = getShapesArray(doc, pageId)
+  const all = getAllShapes(doc, pageId)
+  // Children are promoted to each group's own parent (which may be a frame),
+  // not unconditionally to root.
+  const groupParent = new Map<string, string | null>()
+  for (const s of all) {
+    if (groupIds.has(s.id) && s.type === 'group') groupParent.set(s.id, s.parentId)
+  }
   doc.transact(() => {
-    // Remove parentId from children
     for (let i = 0; i < shapes.length; i++) {
       const map = shapes.get(i) as Y.Map<unknown>
       const parentId = map.get('parentId') as string | null
-      if (parentId && groupIds.has(parentId)) {
-        map.set('parentId', null)
+      if (parentId && groupParent.has(parentId)) {
+        map.set('parentId', groupParent.get(parentId) ?? null)
       }
     }
     // Delete group shapes

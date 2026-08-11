@@ -26,7 +26,7 @@ Atelier is a browser-based vector design tool (similar to Figma) built as a clie
 - **Yjs documents** for all shape/page data (the "document model"). Each project gets a Yjs Doc persisted to IndexedDB. Shapes are stored as `Y.Map` inside `Y.Array` per page.
 - **Zustand stores** (`src/store/`) for UI-only state: tool selection, viewport/zoom, selection, panel visibility, pen tool state, theme, undo/redo history (wraps Yjs UndoManager).
 
-**Document model** (`src/document/`): `DocumentProvider` context gives components access to the active Yjs doc, pages, and shapes via hooks (`useDocument`, `useShapes`). Shape mutations go through `src/document/operations.ts` which transacts against Yjs.
+**Document model** (`src/document/`): `DocumentProvider` context gives components access to the active Yjs doc, pages, and shapes via hooks (`useDocument`, `useShapes`). Shape mutations go through `src/document/operations.ts` which transacts against Yjs. Hierarchy logic (ancestor/descendant walks, cycle guards, and the single frame-containment rule used by creation, drag reparenting, paste, and the layers panel) lives in `src/document/hierarchy.ts` — always use these helpers instead of ad-hoc `parentId` walks. Reparenting and z-order moves go through `moveShapes` in operations.ts.
 
 **Canvas rendering** (`src/canvas/`): Uses Konva.js via `react-konva`. `ShapeRenderer.tsx` is the component factory that maps shape types to Konva components. Selection, inline text editing, pen tool overlay, and context menus are layered on top.
 
