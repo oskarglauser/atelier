@@ -68,7 +68,12 @@ Nothing else. No analytics, no tracking.
 
 ## Roadmap
 
-- Opening and saving Figma (`.fig`) and Illustrator (`.ai`) files
+- Importing SVG and PDF files, with better round-trip export
+- Reusable symbols, components, color styles, and typography styles
+- Project snapshots, version history, and backup files
+- Advanced vector editing such as offset paths, expanded strokes, masks, and compound paths
+- Shared brand libraries for colors, typography, logos, and other assets
+- Opening and saving selected Figma (`.fig`) and Illustrator (`.ai`) formats
 - Real-time collaboration
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for an overview of the architecture and the contribution process.
