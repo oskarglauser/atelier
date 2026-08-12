@@ -2,30 +2,30 @@
 
 **A local-first vector design tool for brand design, moodboards, and graphic design.**
 
-Atelier fills the gap between Illustrator and Figma for brand designers: a fast, focused tool for sketching ideas, drawing vector marks, building moodboards, and assembling identity systems — without a subscription, an account, or a cloud. It runs in your browser or as a native desktop app, and everything you make is stored locally on your machine.
+Atelier is a focused workspace for sketching ideas, drawing vector marks, building moodboards, and putting together identity systems. It runs in your browser or as a native desktop app. There is no subscription or account, and your projects stay on your machine.
 
-**[Try it in your browser →](https://atelier-glauser.vercel.app)** — no install, no account.
+**[Try it in your browser →](https://atelier-glauser.vercel.app)**. No install or account required.
 
 ![Atelier screenshot](docs/screenshot.png)
 
 ## Highlights
 
-- **Vector precision** — full pen tool, freehand drawing, boolean operations (union, subtract, intersect, exclude), and path editing.
-- **CMYK soft-proofing** — preview how colors and images will behave in print, something browser-based design tools typically don't offer.
-- **Typography** — use every font installed on your system (native enumeration in the desktop app, Local Font Access API in Chrome/Edge), browse Google Fonts, and convert WOFF2 web fonts to editable outlines across modern browsers.
-- **Frames, groups & layers** — nested frames that clip and auto-include content, groups that move as one, drag-and-drop layer reordering.
-- **Gradients & fills** — linear gradients with optional noise texture.
-- **Export anywhere** — SVG, PNG, JPG, EPS, PDF, or copy as code.
-- **Local-first** — projects are persisted to IndexedDB using [Yjs](https://yjs.dev) CRDTs. No backend, no telemetry, no account. Your work never leaves your machine.
-- **Multi-page projects** with full undo/redo history.
-- **Focused workspace** — light, dark, and system themes with persistent grid, snapping, ruler, color-mode, and export preferences.
+- **Vector tools:** A pen tool, freehand drawing, path editing, and boolean operations for union, subtract, intersect, and exclude.
+- **CMYK soft proofing:** Preview how colors and images may behave in print.
+- **Typography:** Use installed system fonts, browse Google Fonts, and convert text to editable outlines. WOFF2 fonts are decoded locally in the browser.
+- **Frames, groups, and layers:** Nest frames, clip their contents, move grouped objects together, and reorder layers with drag and drop.
+- **Gradients and fills:** Create linear gradients and add an optional noise texture.
+- **Export:** Save work as SVG, PNG, JPG, EPS, or PDF. You can also copy artwork as PNG, SVG, or code.
+- **Local storage:** Projects are stored in IndexedDB using [Yjs](https://yjs.dev). Atelier has no backend, telemetry, or account system.
+- **Multi-page projects:** Work across multiple pages with undo and redo history.
+- **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 
 ## What's new in 0.5.0
 
-- Google Fonts served as WOFF2 can now be decoded locally and converted to vector outlines in the browser.
-- The settings screen now controls real canvas and export preferences; placeholder options were removed.
-- Project cards, dialogs, menus, toolbars, themes, focus states, and pointer feedback received a minimal visual refinement.
-- Outline conversion, empty text layers, and context-menu copy/paste behavior were hardened during a full interaction review.
+- Atelier can now decode WOFF2 files from Google Fonts and convert the text to vector outlines in the browser.
+- Canvas and export preferences in Settings now work and persist between sessions.
+- Project cards, dialogs, menus, toolbars, themes, and interaction feedback have been refined.
+- Outline conversion is safer, empty text layers are cleaned up, and copy and paste work from the context menu.
 
 ## Getting started
 
@@ -36,11 +36,11 @@ npm ci
 npm run dev
 ```
 
-Then open the printed localhost URL. Production build: `npm run build` (output in `dist/`).
+Open the localhost URL printed in the terminal. Run `npm run build` to create a production build in `dist/`.
 
 ### Run as a desktop app
 
-The desktop app is built with [Tauri](https://tauri.app) and adds native system-font access and auto-updates. You'll need [Rust](https://rustup.rs) and the platform prerequisites from the [Tauri docs](https://tauri.app/start/prerequisites/).
+The desktop app is built with [Tauri](https://tauri.app). It adds native system font access and automatic updates. You will need [Rust](https://rustup.rs) and the platform prerequisites listed in the [Tauri docs](https://tauri.app/start/prerequisites/).
 
 ```bash
 npm ci
@@ -52,14 +52,14 @@ Signed macOS builds are published on the [releases page](https://github.com/oska
 
 ## Where your files live
 
-There is no cloud. Project metadata and document data are stored in your browser's (or the desktop app's) IndexedDB, with each project in its own database. Use the export options (SVG/PNG/PDF) to get artwork out. Because the document model is already CRDT-based (Yjs), real-time collaboration is a natural future extension.
+Atelier does not use cloud storage. Project metadata and document data are saved to IndexedDB in your browser or desktop app, with a separate database for each project. Use the export tools to save artwork outside Atelier.
 
 ## Privacy
 
-Atelier talks to exactly two external services:
+Atelier connects to two external services:
 
-- **Google Fonts** — when you browse or use a Google font.
-- **GitHub** — the desktop app checks the releases feed for signed updates.
+- **Google Fonts:** Used when you browse or select a Google font.
+- **GitHub:** The desktop app checks the releases feed for signed updates.
 
 Nothing else. No analytics, no tracking.
 
@@ -69,7 +69,7 @@ Nothing else. No analytics, no tracking.
 - Windows and Linux desktop builds
 - Real-time collaboration
 
-Contributions toward any of these are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the architecture overview and how to get a change merged.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for an overview of the architecture and the contribution process.
 
 ## Tech stack
 
