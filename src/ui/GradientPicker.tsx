@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { HexColorPicker, HexColorInput } from 'react-colorful'
 import { Plus, Trash2 } from 'lucide-react'
 import type { GradientFill, GradientColorStop } from '../types/document'
+import { useFloatingPopover } from '../hooks/useFloatingPopover'
 
 interface Props {
   value: GradientFill
@@ -131,9 +132,16 @@ function StopBar({ stops, selectedIndex, onSelect, onChange }: {
 export function GradientPicker({ value, onChange }: Props) {
   const [selectedStop, setSelectedStop] = useState(0)
   const [isPickerOpen, setIsPickerOpen] = useState(false)
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
   const swatchRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const floatingStyle = useFloatingPopover({
+    open: isPickerOpen,
+    anchorRef: swatchRef,
+    popoverRef,
+    width: 226,
+    estimatedHeight: 186,
+    align: 'end',
+  })
 
   const stops = value.stops || [
     { offset: 0, color: '#000000' },
@@ -165,16 +173,7 @@ export function GradientPicker({ value, onChange }: Props) {
     setSelectedStop(Math.max(0, selectedStop - 1))
   }
 
-  const openPicker = () => {
-    if (swatchRef.current) {
-      const rect = swatchRef.current.getBoundingClientRect()
-      const popoverHeight = 220
-      const top = rect.top > popoverHeight ? rect.top - popoverHeight - 8 : rect.bottom + 8
-      const left = Math.max(8, rect.right - 232)
-      setPopoverPos({ top, left })
-    }
-    setIsPickerOpen(true)
-  }
+  const openPicker = () => setIsPickerOpen(true)
 
   useEffect(() => {
     if (!isPickerOpen) return
@@ -206,6 +205,9 @@ export function GradientPicker({ value, onChange }: Props) {
         <button
           ref={swatchRef}
           onClick={openPicker}
+          aria-label="Edit gradient stop color"
+          aria-expanded={isPickerOpen}
+          aria-haspopup="dialog"
           className="w-7 h-7 rounded-md border border-border cursor-pointer shrink-0"
           style={{ backgroundColor: activeStop?.color || '#000' }}
         />
@@ -259,8 +261,10 @@ export function GradientPicker({ value, onChange }: Props) {
       {isPickerOpen && createPortal(
         <div
           ref={popoverRef}
-          className="fixed p-3 bg-bg-secondary border border-border rounded-lg shadow-xl z-50"
-          style={{ top: popoverPos.top, left: popoverPos.left }}
+          role="dialog"
+          aria-label="Gradient stop color picker"
+          className="fixed overflow-y-auto p-3 bg-bg-secondary border border-border rounded-lg shadow-xl z-[200]"
+          style={floatingStyle}
         >
           <HexColorPicker
             color={activeStop?.color || '#000000'}

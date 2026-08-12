@@ -14,18 +14,22 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **CMYK soft proofing:** Preview how colors and images may behave in print.
 - **Typography:** Use installed system fonts, browse Google Fonts, and convert text to editable outlines. WOFF2 fonts are decoded locally in the browser.
 - **Frames, groups, and layers:** Nest frames, clip their contents, move grouped objects together, and reorder layers with drag and drop.
+- **Object arrangement:** Align selected objects by their edges or centers and distribute spacing evenly.
 - **Gradients and fills:** Create linear gradients and add an optional noise texture.
 - **Export:** Save work as SVG, PNG, JPG, EPS, or PDF. You can also copy artwork as PNG, SVG, or code.
 - **Local storage:** Projects are stored in IndexedDB using [Yjs](https://yjs.dev). Atelier has no backend, telemetry, or account system.
 - **Multi-page projects:** Work across multiple pages with undo and redo history.
+- **Keyboard workflow:** Use familiar design-tool shortcuts and open the built-in shortcut guide at any time.
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 
-## What's new in 0.5.0
+## What's new in 0.6.0
 
-- Atelier can now decode WOFF2 files from Google Fonts and convert the text to vector outlines in the browser.
-- Canvas and export preferences in Settings now work and persist between sessions.
-- Project cards, dialogs, menus, toolbars, themes, and interaction feedback have been refined.
-- Outline conversion is safer, empty text layers are cleaned up, and copy and paste work from the context menu.
+- Multi-selections can now be aligned by their edges or centers and distributed with even horizontal or vertical spacing.
+- Alignment tools are available in the properties panel and from a compact context-menu submenu.
+- A broader set of Figma and Illustrator-style keyboard shortcuts covers tools, editing, type, arrangement, and zoom. Press `?` to see the full list in Atelier.
+- Font, color, gradient, and context menus now reposition themselves to stay inside the window.
+- The color mode control is smaller and easier to scan, and right-clicking no longer clears the current selection.
+- Text converted to outlines keeps its visual settings and remains selected after conversion.
 
 ## Getting started
 

@@ -9,10 +9,10 @@ const tools: Array<{ type: ToolType; label: string; shortcut: string; Icon: Luci
   { type: 'select', label: 'Select', shortcut: 'V', Icon: MousePointer2 },
   { type: 'frame', label: 'Frame', shortcut: 'F', Icon: Frame },
   { type: 'rectangle', label: 'Rectangle', shortcut: 'R', Icon: Square },
-  { type: 'ellipse', label: 'Ellipse', shortcut: 'E', Icon: Circle },
+  { type: 'ellipse', label: 'Ellipse', shortcut: 'O', Icon: Circle },
   { type: 'line', label: 'Line', shortcut: 'L', Icon: Minus },
   { type: 'pen', label: 'Pen', shortcut: 'P', Icon: PenTool },
-  { type: 'freehand', label: 'Draw', shortcut: 'D', Icon: Brush },
+  { type: 'freehand', label: 'Draw', shortcut: 'B', Icon: Brush },
   { type: 'text', label: 'Text', shortcut: 'T', Icon: Type },
   { type: 'image', label: 'Image', shortcut: 'I', Icon: Image },
 ]

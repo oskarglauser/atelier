@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { HexColorPicker, HexColorInput } from 'react-colorful'
 import { X } from 'lucide-react'
 import { useCanvasStore } from '../store/canvasStore'
 import { hexToCmyk, cmykToHex, hexToCmykEmulated, type CMYK } from '../utils/colorConvert'
+import { useFloatingPopover } from '../hooks/useFloatingPopover'
 
 interface Props {
   value: string
@@ -14,22 +15,16 @@ interface Props {
 
 export function ColorPicker({ value, onChange, label, colorMode: colorModeProp }: Props) {
   const [isOpen, setIsOpen] = useState(false)
-  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const popoverRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-
-  const updatePosition = useCallback(() => {
-    if (!btnRef.current) return
-    const rect = btnRef.current.getBoundingClientRect()
-    const popoverHeight = 240
-    const popoverWidth = 232
-    const spaceAbove = rect.top
-    const top = spaceAbove > popoverHeight
-      ? rect.top - popoverHeight - 8
-      : rect.bottom + 8
-    const left = Math.max(8, rect.right - popoverWidth)
-    setPopoverPos({ top, left })
-  }, [])
+  const floatingStyle = useFloatingPopover({
+    open: isOpen,
+    anchorRef: btnRef,
+    popoverRef,
+    width: 226,
+    estimatedHeight: colorModeProp === 'cmyk' ? 286 : 226,
+    align: 'end',
+  })
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -44,10 +39,7 @@ export function ColorPicker({ value, onChange, label, colorMode: colorModeProp }
     return () => document.removeEventListener('mousedown', handleClick)
   }, [isOpen])
 
-  const handleToggle = () => {
-    if (!isOpen) updatePosition()
-    setIsOpen(!isOpen)
-  }
+  const handleToggle = () => setIsOpen(!isOpen)
 
   const globalColorMode = useCanvasStore((s) => s.colorMode)
   const colorMode = colorModeProp ?? globalColorMode
@@ -80,6 +72,9 @@ export function ColorPicker({ value, onChange, label, colorMode: colorModeProp }
         <button
           ref={btnRef}
           onClick={handleToggle}
+          aria-label={hasColor ? `Edit color ${safeHex}` : 'Choose color'}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
           className="w-7 h-7 rounded-md border border-border cursor-pointer shrink-0 transition-shadow hover:shadow-sm relative overflow-hidden"
           style={{ backgroundColor: hasColor ? visualHex : 'transparent' }}
         >
@@ -114,8 +109,10 @@ export function ColorPicker({ value, onChange, label, colorMode: colorModeProp }
         {isOpen && createPortal(
           <div
             ref={popoverRef}
-            className="fixed p-3 bg-bg-secondary border border-border rounded-lg shadow-xl z-50"
-            style={{ top: popoverPos.top, left: popoverPos.left }}
+            role="dialog"
+            aria-label="Color picker"
+            className="fixed overflow-y-auto p-3 bg-bg-secondary border border-border rounded-lg shadow-xl z-[200]"
+            style={floatingStyle}
           >
             <HexColorPicker color={safeHex} onChange={handleColorChange} style={{ width: 200, height: 160 }} />
             <div className="mt-2 flex items-center gap-2">

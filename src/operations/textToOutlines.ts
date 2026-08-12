@@ -1,6 +1,8 @@
 import opentype from 'opentype.js'
 import type { TextShape } from '../types/document'
 import { isTauri } from '../utils/isTauri'
+import type * as Y from 'yjs'
+import { addShape, deleteShapes, getAllShapes, reorderShape } from '../document/operations'
 
 const fontCache = new Map<string, opentype.Font>()
 const pendingFonts = new Map<string, Promise<opentype.Font | null>>()
@@ -174,6 +176,50 @@ export async function textToOutlines(shape: TextShape): Promise<{ pathData: stri
     width: bbox.x2 - bbox.x1,
     height: bbox.y2 - bbox.y1,
   }
+}
+
+export async function outlineSelectedText(
+  doc: Y.Doc,
+  pageId: string,
+  selectedIds: Set<string>,
+): Promise<string[]> {
+  const selected = getAllShapes(doc, pageId).filter(
+    (shape): shape is TextShape => selectedIds.has(shape.id) && shape.type === 'text',
+  )
+  const conversions = (
+    await Promise.all(selected.map(async (source) => ({ source, result: await textToOutlines(source) })))
+  ).filter((conversion) => conversion.result !== null)
+  if (conversions.length === 0) return []
+
+  const sourceIds = new Set(conversions.map(({ source }) => source.id))
+  const outlineIds: string[] = []
+  doc.transact(() => {
+    for (const { source, result } of conversions) {
+      if (!result) continue
+      const outline = addShape(doc, pageId, 'path', {
+        x: source.x,
+        y: source.y,
+        ...result,
+        rotation: source.rotation,
+        opacity: source.opacity,
+        visible: source.visible,
+        locked: source.locked,
+        lockProportions: source.lockProportions,
+        colorMode: source.colorMode,
+        closed: true,
+        fill: source.fill,
+        stroke: source.stroke,
+        strokeWidth: source.strokeWidth,
+        parentId: source.parentId ?? null,
+      })
+      const live = getAllShapes(doc, pageId)
+      const sourceIndex = live.findIndex((shape) => shape.id === source.id)
+      if (sourceIndex >= 0) reorderShape(doc, pageId, outline.id, sourceIndex)
+      outlineIds.push(outline.id)
+    }
+    deleteShapes(doc, pageId, sourceIds)
+  }, 'local')
+  return outlineIds
 }
 
 function applyTransform(text: string, transform: string): string {

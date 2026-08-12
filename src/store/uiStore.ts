@@ -11,6 +11,7 @@ interface UIState {
   editingFrameTitleId: string | null
   isLeftPanelOpen: boolean
   isRightPanelOpen: boolean
+  isShortcutHelpOpen: boolean
 
   setActiveTool: (tool: ToolType) => void
   setSelectedIds: (ids: Set<string>) => void
@@ -23,6 +24,7 @@ interface UIState {
   setEditingFrameTitleId: (id: string | null) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
+  setShortcutHelpOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -34,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingFrameTitleId: null,
   isLeftPanelOpen: true,
   isRightPanelOpen: true,
+  isShortcutHelpOpen: false,
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   setSelectedIds: (ids) => set({ selectedIds: ids }),
@@ -56,4 +59,5 @@ export const useUIStore = create<UIState>((set) => ({
   setEditingFrameTitleId: (id) => set({ editingFrameTitleId: id }),
   toggleLeftPanel: () => set((s) => ({ isLeftPanelOpen: !s.isLeftPanelOpen })),
   toggleRightPanel: () => set((s) => ({ isRightPanelOpen: !s.isRightPanelOpen })),
+  setShortcutHelpOpen: (open) => set({ isShortcutHelpOpen: open }),
 }))

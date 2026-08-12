@@ -3,7 +3,9 @@ import { useHistoryStore } from '../store/historyStore'
 import { useProjectStore } from '../projects/projectStore'
 import { getStageRef } from '../store/stageRef'
 import { captureThumbnail } from '../canvas/captureThumbnail'
-import { Undo2, Redo2, ChevronLeft, ChevronDown, Plus } from 'lucide-react'
+import { useUIStore } from '../store/uiStore'
+import { KeyboardShortcutsDialog } from '../ui/KeyboardShortcutsDialog'
+import { Undo2, Redo2, ChevronLeft, ChevronDown, Plus, Keyboard } from 'lucide-react'
 
 export function TopBar() {
   const { canUndo, canRedo, undo, redo } = useHistoryStore()
@@ -13,6 +15,7 @@ export function TopBar() {
   const projects = useProjectStore((s) => s.projects)
   const openProject = useProjectStore((s) => s.openProject)
   const createProject = useProjectStore((s) => s.createProject)
+  const setShortcutHelpOpen = useUIStore((s) => s.setShortcutHelpOpen)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [newName, setNewName] = useState('')
@@ -152,6 +155,14 @@ export function TopBar() {
 
       <div className="flex items-center gap-0.5">
         <button
+          onClick={() => setShortcutHelpOpen(true)}
+          className="mr-1 flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
+          aria-label="Open keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >
+          <Keyboard size={14} strokeWidth={1.5} />
+        </button>
+        <button
           onClick={undo}
           disabled={!canUndo}
           className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-bg-hover disabled:opacity-25 disabled:pointer-events-none transition-colors"
@@ -168,6 +179,7 @@ export function TopBar() {
           <Redo2 size={14} strokeWidth={1.5} />
         </button>
       </div>
+      <KeyboardShortcutsDialog />
     </div>
   )
 }

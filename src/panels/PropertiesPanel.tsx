@@ -4,7 +4,7 @@ import { useDocument } from '../hooks/useDocument'
 import { updateShape, addShape } from '../document/operations'
 import type { Shape, TextShape, LineShape, LineCap, FrameShape, FrameRuler, ExportConfig, ImageShape } from '../types/document'
 import { useCallback, useMemo, useState } from 'react'
-import { useCanvasStore } from '../store/canvasStore'
+import { useCanvasStore, type ColorMode } from '../store/canvasStore'
 import { useViewportStore } from '../store/viewportStore'
 import { ColorPicker } from '../ui/ColorPicker'
 import { GradientPicker } from '../ui/GradientPicker'
@@ -16,9 +16,12 @@ import { exportShapes, type ExportFormat, type ExportScale } from '../utils/expo
 import { artboardPresets, insetRulers, type ArtboardPreset } from '../utils/artboardPresets'
 import { generateId } from '../utils/id'
 import { DEFAULT_GRADIENT } from '../utils/constants'
+import { alignSelectedObjects, distributeSelectedObjects } from '../operations/arrangeObjects'
 import {
   AlignLeft, AlignCenter, AlignRight,
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
+  AlignHorizontalJustifyStart, AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd,
+  AlignHorizontalSpaceBetween, AlignVerticalSpaceBetween,
   Italic, Underline, Strikethrough,
   CaseSensitive, CaseUpper, CaseLower,
   Baseline, ALargeSmall, MoveVertical, WholeWord, WrapText,
@@ -57,11 +60,88 @@ function ToggleButton({ active, onClick, title, children }: { active: boolean; o
   )
 }
 
+function ArrangementButton({
+  onClick,
+  title,
+  disabled = false,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      className="flex h-7 min-w-0 flex-1 items-center justify-center rounded-md text-text-dim transition-colors hover:bg-bg-hover hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-dim"
+    >
+      {children}
+    </button>
+  )
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="px-3.5 py-3 border-b border-border">
       <div className="text-text-dim text-[11px] font-semibold uppercase tracking-widest mb-2.5">{title}</div>
       {children}
+    </div>
+  )
+}
+
+type ColorModeSelection = ColorMode | 'auto'
+
+function ColorModeControl({
+  value,
+  onChange,
+  autoMode,
+}: {
+  value: ColorModeSelection
+  onChange: (mode: ColorModeSelection) => void
+  autoMode?: ColorMode
+}) {
+  const modes: ColorModeSelection[] = autoMode ? ['auto', 'rgb', 'cmyk'] : ['rgb', 'cmyk']
+
+  return (
+    <div
+      role="group"
+      aria-label="Color mode"
+      className="flex rounded-lg bg-bg-tertiary p-0.5 ring-1 ring-border/70"
+    >
+      {modes.map((mode) => {
+        const active = value === mode
+        const label = mode === 'auto' ? 'Auto' : mode.toUpperCase()
+        const title = mode === 'auto'
+          ? `Use canvas color mode (${autoMode?.toUpperCase()})`
+          : `Use ${mode.toUpperCase()} color mode`
+
+        return (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={active}
+            title={title}
+            onClick={() => onChange(mode)}
+            className={`flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+              active
+                ? 'bg-accent text-white shadow-sm'
+                : 'text-text-dim hover:bg-bg-hover hover:text-text'
+            }`}
+          >
+            <span>{label}</span>
+            {mode === 'auto' && (
+              <span className={`text-[9px] font-semibold tracking-wide ${active ? 'text-white/75' : 'text-text-dim/75'}`}>
+                {autoMode?.toUpperCase()}
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -116,24 +196,12 @@ function CanvasSettingsPanel() {
       </Section>
 
       <Section title="Color Mode">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setColorMode('rgb')}
-            className={`flex-1 py-1 rounded-md text-[12px] font-medium transition-colors ${
-              colorMode === 'rgb' ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-dim hover:text-text'
-            }`}
-          >
-            RGB
-          </button>
-          <button
-            onClick={() => setColorMode('cmyk')}
-            className={`flex-1 py-1 rounded-md text-[12px] font-medium transition-colors ${
-              colorMode === 'cmyk' ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-dim hover:text-text'
-            }`}
-          >
-            CMYK
-          </button>
-        </div>
+        <ColorModeControl
+          value={colorMode}
+          onChange={(mode) => {
+            if (mode !== 'auto') setColorMode(mode)
+          }}
+        />
       </Section>
 
       <Section title="Grid">
@@ -505,22 +573,60 @@ export function PropertiesPanel() {
         </div>
       </Section>
 
+      {selected.length >= 2 && (
+        <Section title="Align and Distribute">
+          <div className="rounded-lg bg-bg-tertiary p-0.5 ring-1 ring-border/70">
+            <div className="flex items-center">
+              <ArrangementButton onClick={() => alignSelectedObjects(doc, activePageId, selectedIds, 'left')} title="Align left">
+                <AlignHorizontalJustifyStart size={14} strokeWidth={1.5} />
+              </ArrangementButton>
+              <ArrangementButton onClick={() => alignSelectedObjects(doc, activePageId, selectedIds, 'horizontal-center')} title="Align horizontal centers">
+                <AlignHorizontalJustifyCenter size={14} strokeWidth={1.5} />
+              </ArrangementButton>
+              <ArrangementButton onClick={() => alignSelectedObjects(doc, activePageId, selectedIds, 'right')} title="Align right">
+                <AlignHorizontalJustifyEnd size={14} strokeWidth={1.5} />
+              </ArrangementButton>
+              <div className="mx-0.5 h-4 w-px bg-border" />
+              <ArrangementButton onClick={() => alignSelectedObjects(doc, activePageId, selectedIds, 'top')} title="Align top">
+                <AlignVerticalJustifyStart size={14} strokeWidth={1.5} />
+              </ArrangementButton>
+              <ArrangementButton onClick={() => alignSelectedObjects(doc, activePageId, selectedIds, 'vertical-center')} title="Align vertical centers">
+                <AlignVerticalJustifyCenter size={14} strokeWidth={1.5} />
+              </ArrangementButton>
+              <ArrangementButton onClick={() => alignSelectedObjects(doc, activePageId, selectedIds, 'bottom')} title="Align bottom">
+                <AlignVerticalJustifyEnd size={14} strokeWidth={1.5} />
+              </ArrangementButton>
+            </div>
+            <div className="mx-1 h-px bg-border/80" />
+            <div className="flex items-center">
+              <ArrangementButton
+                onClick={() => distributeSelectedObjects(doc, activePageId, selectedIds, 'horizontal')}
+                title="Distribute horizontal spacing"
+                disabled={selected.length < 3}
+              >
+                <AlignHorizontalSpaceBetween size={14} strokeWidth={1.5} />
+                <span className="ml-1.5 text-[10px]">Horizontal</span>
+              </ArrangementButton>
+              <div className="mx-0.5 h-4 w-px bg-border" />
+              <ArrangementButton
+                onClick={() => distributeSelectedObjects(doc, activePageId, selectedIds, 'vertical')}
+                title="Distribute vertical spacing"
+                disabled={selected.length < 3}
+              >
+                <AlignVerticalSpaceBetween size={14} strokeWidth={1.5} />
+                <span className="ml-1.5 text-[10px]">Vertical</span>
+              </ArrangementButton>
+            </div>
+          </div>
+        </Section>
+      )}
+
       <Section title="Color Mode">
-        <div className="flex gap-1">
-          {(['auto', 'rgb', 'cmyk'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => update('colorMode', mode === 'auto' ? undefined : mode)}
-              className={`flex-1 py-1 rounded-md text-[12px] font-medium transition-colors ${
-                (mode === 'auto' && !first.colorMode) || first.colorMode === mode
-                  ? 'bg-accent text-white'
-                  : 'bg-bg-tertiary text-text-dim hover:text-text'
-              }`}
-            >
-              {mode === 'auto' ? `Auto (${globalColorMode.toUpperCase()})` : mode.toUpperCase()}
-            </button>
-          ))}
-        </div>
+        <ColorModeControl
+          value={first.colorMode ?? 'auto'}
+          autoMode={globalColorMode}
+          onChange={(mode) => update('colorMode', mode === 'auto' ? undefined : mode)}
+        />
       </Section>
 
       <Section title="Fill">

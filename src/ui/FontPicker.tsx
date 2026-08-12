@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, useId } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Search } from 'lucide-react'
 import { googleFonts, systemFonts, categories, type FontEntry } from '../fonts/fontList'
 import { loadGoogleFont, detectSystemFonts } from '../fonts/fontLoader'
+import { useFloatingPopover } from '../hooks/useFloatingPopover'
 
 let cachedLocalFonts: FontEntry[] | null = null
 
@@ -21,8 +23,19 @@ export function FontPicker({ value, onChange }: Props) {
   const [localFonts, setLocalFonts] = useState<FontEntry[]>(cachedLocalFonts || [])
   const [scrollTop, setScrollTop] = useState(0)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const popoverId = useId()
+  const floatingStyle = useFloatingPopover({
+    open: isOpen,
+    anchorRef: triggerRef,
+    popoverRef,
+    width: 320,
+    estimatedHeight: 320,
+    align: 'end',
+  })
 
   useEffect(() => {
     if (cachedLocalFonts) return
@@ -34,15 +47,28 @@ export function FontPicker({ value, onChange }: Props) {
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        (!popoverRef.current || !popoverRef.current.contains(e.target as Node))
+      ) {
         setIsOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false)
+        triggerRef.current?.focus()
       }
     }
     if (isOpen) {
       document.addEventListener('mousedown', handleClick)
+      document.addEventListener('keydown', handleKeyDown)
       setTimeout(() => searchRef.current?.focus(), 0)
     }
-    return () => document.removeEventListener('mousedown', handleClick)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [isOpen])
 
   const filtered = useMemo(() => {
@@ -93,18 +119,29 @@ export function FontPicker({ value, onChange }: Props) {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         onClick={() => {
           if (!isOpen) setScrollTop(0)
           setIsOpen(!isOpen)
         }}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? popoverId : undefined}
+        aria-haspopup="listbox"
         className="w-full flex items-center gap-1.5 bg-bg-tertiary border border-transparent hover:border-border rounded-md px-2 py-1.5 text-[13px] text-text transition-colors"
       >
         <span className="flex-1 text-left truncate">{value || 'Select font'}</span>
         <ChevronDown size={12} className="text-text-dim shrink-0" />
       </button>
 
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-lg shadow-xl z-50 overflow-hidden" style={{ width: 240 }}>
+      {isOpen && createPortal(
+        <div
+          id={popoverId}
+          ref={popoverRef}
+          role="listbox"
+          aria-label="Fonts"
+          className="flex flex-col bg-bg-secondary border border-border-light/70 rounded-xl shadow-2xl z-[200] overflow-hidden"
+          style={floatingStyle}
+        >
           <div className="p-2 border-b border-border">
             <div className="flex items-center gap-1.5 bg-bg-tertiary rounded-md px-2 py-1">
               <Search size={12} className="text-text-dim shrink-0" />
@@ -119,7 +156,7 @@ export function FontPicker({ value, onChange }: Props) {
             </div>
           </div>
 
-          <div className="flex gap-0.5 px-2 py-1.5 border-b border-border overflow-x-auto">
+          <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b border-border">
             <button
               onClick={() => setActiveCategory(null)}
               className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors shrink-0 ${
@@ -155,6 +192,8 @@ export function FontPicker({ value, onChange }: Props) {
                   <button
                     key={font.family}
                     onClick={() => handleSelect(font)}
+                    role="option"
+                    aria-selected={font.family === value}
                     className={`w-full flex items-center justify-between px-3 text-[13px] transition-colors absolute left-0 right-0 ${
                       font.family === value
                         ? 'bg-accent/15 text-text'
@@ -172,7 +211,8 @@ export function FontPicker({ value, onChange }: Props) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

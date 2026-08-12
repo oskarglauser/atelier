@@ -12,8 +12,9 @@ import { useCanvasStore, snapValue } from '../store/canvasStore'
 import { snapWithRulers } from '../utils/snapToRulers'
 import { addShape, updateShape, reorderShape, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
 import { performBooleanOp } from '../operations/booleanOps'
-import { textToOutlines } from '../operations/textToOutlines'
-import type { Shape, TextShape } from '../types/document'
+import { outlineSelectedText } from '../operations/textToOutlines'
+import { alignSelectedObjects, distributeSelectedObjects } from '../operations/arrangeObjects'
+import type { Shape } from '../types/document'
 import { resolveParentForBounds, isFullyContained } from '../document/hierarchy'
 import { simplifyPath, pointsToSvgPath, getPointsBounds } from '../utils/path'
 import { getShapesBounds, isNearPoint } from '../utils/math'
@@ -27,7 +28,14 @@ import { InlineTextEditor } from './InlineTextEditor'
 import { InlineFrameTitleEditor } from './InlineFrameTitleEditor'
 import { PenToolOverlay } from './PenToolOverlay'
 import { ContextMenu, type MenuEntry } from '../ui/ContextMenu'
-import { Copy, Clipboard, Trash2, CopyPlus, ArrowUpToLine, ArrowDownToLine, Group, Ungroup, Merge, Minus as MinusIcon, SquaresIntersect, Diff, TypeOutline, ImageIcon, FileCode } from 'lucide-react'
+import {
+  Copy, Clipboard, Trash2, CopyPlus, ArrowUpToLine, ArrowDownToLine,
+  Group, Ungroup, Merge, Minus as MinusIcon, SquaresIntersect, Diff,
+  TypeOutline, ImageIcon, FileCode, AlignHorizontalJustifyStart,
+  AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd,
+  AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
+  AlignHorizontalSpaceBetween, AlignVerticalSpaceBetween,
+} from 'lucide-react'
 
 function dispatchEditorShortcut(key: 'c' | 'v') {
   window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -236,6 +244,10 @@ export function Canvas() {
   const handlePointerDown = useCallback((e: Konva.KonvaEventObject<PointerEvent>) => {
     const pos = getPointerPos()
     if (!pos) return
+
+    // Context-clicking should preserve the current selection so its actions
+    // remain available even when the pointer is over empty canvas.
+    if (e.evt.button === 2) return
 
     if (e.evt.button === 1 || (e.evt.button === 0 && e.evt.altKey) || (e.evt.button === 0 && spaceHeld)) {
       setIsPanning(true)
@@ -597,37 +609,8 @@ export function Canvas() {
   }
 
   const handleTextToOutlines = async () => {
-    // Await all conversions first — transactions must stay synchronous
-    const conversions: { source: TextShape; result: { pathData: string; width: number; height: number } }[] = []
-    for (const s of selected) {
-      if (s.type === 'text') {
-        const result = await textToOutlines(s as TextShape)
-        if (result) conversions.push({ source: s as TextShape, result })
-      }
-    }
-    if (conversions.length === 0) return
-
-    const convertedIds = new Set(conversions.map(({ source }) => source.id))
-    doc.transact(() => {
-      for (const { source, result } of conversions) {
-        const newShape = addShape(doc, activePageId, 'path', {
-          x: source.x,
-          y: source.y,
-          ...result,
-          closed: true,
-          fill: source.fill,
-          stroke: source.stroke,
-          strokeWidth: source.strokeWidth,
-          parentId: source.parentId ?? null,
-        })
-        // Slot the outline path in just below its source text
-        const live = getAllShapes(doc, activePageId)
-        const srcIdx = live.findIndex((s) => s.id === source.id)
-        if (srcIdx >= 0) reorderShape(doc, activePageId, newShape.id, srcIdx)
-      }
-      deleteShapes(doc, activePageId, convertedIds)
-    }, 'local')
-    setSelectedIds(new Set())
+    const outlineIds = await outlineSelectedText(doc, activePageId, selectedIds)
+    if (outlineIds.length > 0) setSelectedIds(new Set(outlineIds))
   }
 
   const copyAsPng = useCallback(async () => {
@@ -686,6 +669,21 @@ export function Canvas() {
         { label: 'Copy as SVG', icon: FileCode, action: copyAsSvg },
         { label: 'Paste', icon: Clipboard, shortcut: '⌘V', action: () => dispatchEditorShortcut('v') },
         { divider: true },
+        ...(selectedIds.size >= 2 ? [{
+          label: 'Align and distribute',
+          icon: AlignHorizontalJustifyCenter,
+          children: [
+            { label: 'Align left', icon: AlignHorizontalJustifyStart, action: () => alignSelectedObjects(doc, activePageId, selectedIds, 'left') },
+            { label: 'Align horizontal centers', icon: AlignHorizontalJustifyCenter, action: () => alignSelectedObjects(doc, activePageId, selectedIds, 'horizontal-center') },
+            { label: 'Align right', icon: AlignHorizontalJustifyEnd, action: () => alignSelectedObjects(doc, activePageId, selectedIds, 'right') },
+            { label: 'Align top', icon: AlignVerticalJustifyStart, action: () => alignSelectedObjects(doc, activePageId, selectedIds, 'top') },
+            { label: 'Align vertical centers', icon: AlignVerticalJustifyCenter, action: () => alignSelectedObjects(doc, activePageId, selectedIds, 'vertical-center') },
+            { label: 'Align bottom', icon: AlignVerticalJustifyEnd, action: () => alignSelectedObjects(doc, activePageId, selectedIds, 'bottom') },
+            { divider: true } as const,
+            { label: 'Distribute horizontal spacing', icon: AlignHorizontalSpaceBetween, disabled: selectedIds.size < 3, action: () => distributeSelectedObjects(doc, activePageId, selectedIds, 'horizontal') },
+            { label: 'Distribute vertical spacing', icon: AlignVerticalSpaceBetween, disabled: selectedIds.size < 3, action: () => distributeSelectedObjects(doc, activePageId, selectedIds, 'vertical') },
+          ],
+        }] : []),
         ...(selectedIds.size >= 2 ? [{ label: 'Group', icon: Group, shortcut: '⌘G', action: () => {
           const gid = groupShapes(doc, activePageId, selectedIds)
           if (gid) setSelectedIds(new Set([gid]))
@@ -705,8 +703,8 @@ export function Canvas() {
           setSelectedIds(childIds)
         }}] : []),
         { divider: true },
-        { label: 'Bring to Front', icon: ArrowUpToLine, action: () => bringToFront(doc, activePageId, selectedIds) },
-        { label: 'Send to Back', icon: ArrowDownToLine, action: () => sendToBack(doc, activePageId, selectedIds) },
+        { label: 'Bring to Front', icon: ArrowUpToLine, shortcut: '⌘⇧]', action: () => bringToFront(doc, activePageId, selectedIds) },
+        { label: 'Send to Back', icon: ArrowDownToLine, shortcut: '⌘⇧[', action: () => sendToBack(doc, activePageId, selectedIds) },
         ...(canBoolean ? [
           { divider: true } as const,
           { label: 'Union', icon: Merge, action: () => handleBooleanOp('union') },
@@ -716,7 +714,7 @@ export function Canvas() {
         ] : []),
         ...(hasText ? [
           { divider: true } as const,
-          { label: 'Outline Text', icon: TypeOutline, action: handleTextToOutlines },
+          { label: 'Outline Text', icon: TypeOutline, shortcut: '⌘⇧O', action: handleTextToOutlines },
         ] : []),
         { divider: true },
         { label: 'Delete', icon: Trash2, shortcut: '⌫', danger: true, action: () => { deleteShapes(doc, activePageId, selectedIds); clearSelection() } },

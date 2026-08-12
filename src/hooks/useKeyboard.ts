@@ -3,9 +3,10 @@ import { useUIStore } from '../store/uiStore'
 import { useHistoryStore } from '../store/historyStore'
 import { useViewportStore } from '../store/viewportStore'
 import { useDocument } from './useDocument'
-import { addShape, deleteShapes, duplicateShapes, updateShape, groupShapes, ungroupShapes, getAllShapes, cloneSubtrees, insertShapes } from '../document/operations'
+import { addShape, deleteShapes, duplicateShapes, updateShape, groupShapes, ungroupShapes, getAllShapes, cloneSubtrees, insertShapes, bringToFront, sendToBack } from '../document/operations'
 import { selectionRoots, getDescendants, resolveParentForBounds } from '../document/hierarchy'
 import { getShapesBounds } from '../utils/math'
+import { outlineSelectedText } from '../operations/textToOutlines'
 
 import { NUDGE_AMOUNT, NUDGE_AMOUNT_SHIFT } from '../utils/constants'
 import type { ToolType } from '../types/tools'
@@ -30,10 +31,13 @@ const toolShortcuts: Record<string, ToolType> = {
   f: 'frame',
   r: 'rectangle',
   e: 'ellipse',
+  o: 'ellipse',
   l: 'line',
   p: 'pen',
   d: 'freehand',
+  b: 'freehand',
   t: 'text',
+  i: 'image',
 }
 
 export function useKeyboard() {
@@ -44,11 +48,20 @@ export function useKeyboard() {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
 
-      const { selectedIds, setSelectedIds, setActiveTool, clearSelection } = useUIStore.getState()
+      const { selectedIds, setSelectedIds, setActiveTool, clearSelection, setShortcutHelpOpen, isShortcutHelpOpen } = useUIStore.getState()
       const { undo, redo } = useHistoryStore.getState()
       const meta = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
 
-      if (meta && e.key === 'z') {
+      if (isShortcutHelpOpen) return
+
+      if (!meta && !e.altKey && e.key === '?') {
+        e.preventDefault()
+        setShortcutHelpOpen(true)
+        return
+      }
+
+      if (meta && key === 'z') {
         e.preventDefault()
         if (e.shiftKey) redo()
         else undo()
@@ -74,14 +87,49 @@ export function useKeyboard() {
         return
       }
 
-      if (meta && e.key === 'a') {
+      if (!meta && !e.altKey && e.shiftKey && e.code === 'Digit1') {
+        e.preventDefault()
+        const all = getAllShapes(doc, activePageId)
+        useViewportStore.getState().zoomToFit(all.length > 0 ? getShapesBounds(all) : undefined)
+        return
+      }
+
+      if (!meta && !e.altKey && e.shiftKey && e.code === 'Digit2') {
+        e.preventDefault()
+        if (selectedIds.size > 0) {
+          const selected = getAllShapes(doc, activePageId).filter((shape) => selectedIds.has(shape.id))
+          if (selected.length > 0) useViewportStore.getState().zoomToFit(getShapesBounds(selected))
+        }
+        return
+      }
+
+      if (!meta && !e.altKey && e.shiftKey && e.code === 'Digit0') {
+        e.preventDefault()
+        const { stageWidth, stageHeight } = useViewportStore.getState()
+        useViewportStore.getState().setZoom(1, stageWidth / 2, stageHeight / 2)
+        return
+      }
+
+      if (!meta && !e.altKey && (e.key === '+' || e.key === '=')) {
+        e.preventDefault()
+        useViewportStore.getState().zoomIn()
+        return
+      }
+
+      if (!meta && !e.altKey && e.key === '-') {
+        e.preventDefault()
+        useViewportStore.getState().zoomOut()
+        return
+      }
+
+      if (meta && key === 'a') {
         e.preventDefault()
         const all = getAllShapes(doc, activePageId)
         setSelectedIds(new Set(all.map((s) => s.id)))
         return
       }
 
-      if (meta && e.key === 'd') {
+      if (meta && key === 'd') {
         e.preventDefault()
         if (selectedIds.size > 0) {
           const newIds = duplicateShapes(doc, activePageId, selectedIds)
@@ -91,7 +139,7 @@ export function useKeyboard() {
       }
 
       // Copy: Cmd+C — captures whole subtrees so frames keep their children
-      if (meta && e.key === 'c' && !e.shiftKey) {
+      if (meta && key === 'c' && !e.shiftKey) {
         if (selectedIds.size > 0) {
           const captured = captureSelection(getAllShapes(doc, activePageId), selectedIds)
           clipboardShapes = captured.shapes
@@ -101,7 +149,7 @@ export function useKeyboard() {
       }
 
       // Cut: Cmd+X
-      if (meta && e.key === 'x') {
+      if (meta && key === 'x') {
         if (selectedIds.size > 0) {
           const captured = captureSelection(getAllShapes(doc, activePageId), selectedIds)
           clipboardShapes = captured.shapes
@@ -114,7 +162,7 @@ export function useKeyboard() {
 
       // Paste: Cmd+V — deep clones with fresh ids; each pasted root's parent
       // is re-resolved at the pasted position (the copied parentId is stale)
-      if (meta && e.key === 'v') {
+      if (meta && key === 'v') {
         if (clipboardShapes.length > 0) {
           e.preventDefault()
           const { zoom, offsetX, offsetY } = useViewportStore.getState()
@@ -147,7 +195,7 @@ export function useKeyboard() {
       }
 
       // Group: Cmd+G
-      if (meta && e.key === 'g' && !e.shiftKey) {
+      if (meta && key === 'g' && !e.shiftKey) {
         e.preventDefault()
         if (selectedIds.size >= 2) {
           const groupId = groupShapes(doc, activePageId, selectedIds)
@@ -157,7 +205,7 @@ export function useKeyboard() {
       }
 
       // Ungroup: Cmd+Shift+G
-      if (meta && e.key === 'g' && e.shiftKey) {
+      if (meta && key === 'g' && e.shiftKey) {
         e.preventDefault()
         if (selectedIds.size > 0) {
           const all = getAllShapes(doc, activePageId)
@@ -180,6 +228,69 @@ export function useKeyboard() {
           }
         }
         return
+      }
+
+      if (meta && e.shiftKey && e.code === 'BracketRight' && selectedIds.size > 0) {
+        e.preventDefault()
+        bringToFront(doc, activePageId, selectedIds)
+        return
+      }
+
+      if (meta && e.shiftKey && e.code === 'BracketLeft' && selectedIds.size > 0) {
+        e.preventDefault()
+        sendToBack(doc, activePageId, selectedIds)
+        return
+      }
+
+      if (meta && e.shiftKey && key === 'l' && selectedIds.size > 0) {
+        e.preventDefault()
+        const all = getAllShapes(doc, activePageId)
+        const selected = all.filter((shape) => selectedIds.has(shape.id))
+        const nextLocked = !selected.every((shape) => shape.locked)
+        doc.transact(() => {
+          selected.forEach((shape) => updateShape(doc, activePageId, shape.id, { locked: nextLocked }))
+        }, 'local')
+        return
+      }
+
+      if (meta && e.shiftKey && key === 'h' && selectedIds.size > 0) {
+        e.preventDefault()
+        const all = getAllShapes(doc, activePageId)
+        const selected = all.filter((shape) => selectedIds.has(shape.id))
+        const nextVisible = selected.every((shape) => !shape.visible)
+        doc.transact(() => {
+          selected.forEach((shape) => updateShape(doc, activePageId, shape.id, { visible: nextVisible }))
+        }, 'local')
+        return
+      }
+
+      if (meta && e.shiftKey && key === 'o' && selectedIds.size > 0) {
+        e.preventDefault()
+        void outlineSelectedText(doc, activePageId, selectedIds).then((outlineIds) => {
+          if (outlineIds.length > 0) useUIStore.getState().setSelectedIds(new Set(outlineIds))
+        })
+        return
+      }
+
+      if (meta && !e.shiftKey && ['b', 'i', 'u'].includes(key) && selectedIds.size > 0) {
+        const all = getAllShapes(doc, activePageId)
+        const textShapes = all.filter((shape) => selectedIds.has(shape.id) && shape.type === 'text')
+        if (textShapes.length > 0) {
+          e.preventDefault()
+          doc.transact(() => {
+            for (const shape of textShapes) {
+              if (shape.type !== 'text') continue
+              if (key === 'b') {
+                updateShape(doc, activePageId, shape.id, { fontWeight: shape.fontWeight >= 600 ? 400 : 700 })
+              } else if (key === 'i') {
+                updateShape(doc, activePageId, shape.id, { fontStyle: shape.fontStyle === 'italic' ? 'normal' : 'italic' })
+              } else {
+                updateShape(doc, activePageId, shape.id, { textDecoration: shape.textDecoration === 'underline' ? 'none' : 'underline' })
+              }
+            }
+          }, 'local')
+          return
+        }
       }
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
@@ -215,8 +326,8 @@ export function useKeyboard() {
         return
       }
 
-      if (!meta && !e.altKey && toolShortcuts[e.key]) {
-        setActiveTool(toolShortcuts[e.key])
+      if (!meta && !e.altKey && toolShortcuts[key]) {
+        setActiveTool(toolShortcuts[key])
       }
     }
 
