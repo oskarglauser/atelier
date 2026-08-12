@@ -53,6 +53,14 @@ npm run tauri:build   # produce a distributable bundle
 
 Desktop builds for macOS, Windows, and Linux are published on the [releases page](https://github.com/oskarglauser/atelier/releases). Windows releases use an NSIS installer, while Linux releases include DEB and AppImage packages.
 
+### Opening the macOS build
+
+The macOS builds are not currently signed and notarized with an Apple Developer ID. Because of this, macOS may say that Apple cannot verify Atelier or check it for malicious software.
+
+If you downloaded Atelier from the official releases page and trust the source, try to open it once, then open **System Settings → Privacy & Security**. Scroll down to the Security section, click **Open Anyway**, and confirm that you want to open Atelier. Apple documents this process in [Safely open apps on your Mac](https://support.apple.com/en-us/102445).
+
+Atelier's automatic-update files are cryptographically signed, but that signature does not replace Apple's Developer ID signing and notarization. Proper macOS signing is planned for a future release.
+
 ## Where your files live
 
 Atelier does not use cloud storage. Project metadata and document data are saved to IndexedDB in your browser or desktop app, with a separate database for each project. Use the export tools to save artwork outside Atelier.
