@@ -21,15 +21,14 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Multi-page projects:** Work across multiple pages with undo and redo history.
 - **Keyboard workflow:** Use familiar design-tool shortcuts and open the built-in shortcut guide at any time.
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
+- **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
-## What's new in 0.6.0
+## What's new in 0.7.0
 
-- Multi-selections can now be aligned by their edges or centers and distributed with even horizontal or vertical spacing.
-- Alignment tools are available in the properties panel and from a compact context-menu submenu.
-- A broader set of Figma and Illustrator-style keyboard shortcuts covers tools, editing, type, arrangement, and zoom. Press `?` to see the full list in Atelier.
-- Font, color, gradient, and context menus now reposition themselves to stay inside the window.
-- The color mode control is smaller and easier to scan, and right-clicking no longer clears the current selection.
-- Text converted to outlines keeps its visual settings and remains selected after conversion.
+- Settings can now be opened from the editor without leaving the current project.
+- The web app, landing page, and desktop packages now share a clear A-shaped icon.
+- Tagged releases build native Apple Silicon and Intel macOS packages, a Windows NSIS installer, and Linux DEB and AppImage packages.
+- Platform messaging on the landing page now reflects the available desktop builds.
 
 ## Getting started
 
@@ -52,7 +51,7 @@ npm run tauri:dev     # develop
 npm run tauri:build   # produce a distributable bundle
 ```
 
-Signed macOS builds are published on the [releases page](https://github.com/oskarglauser/atelier/releases).
+Desktop builds for macOS, Windows, and Linux are published on the [releases page](https://github.com/oskarglauser/atelier/releases). Windows releases use an NSIS installer, while Linux releases include DEB and AppImage packages.
 
 ## Where your files live
 
@@ -70,7 +69,6 @@ Nothing else. No analytics, no tracking.
 ## Roadmap
 
 - Opening and saving Figma (`.fig`) and Illustrator (`.ai`) files
-- Windows and Linux desktop builds
 - Real-time collaboration
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for an overview of the architecture and the contribution process.

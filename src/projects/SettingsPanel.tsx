@@ -16,6 +16,7 @@ import {
 
 interface Props {
   onBack: () => void
+  backLabel?: string
 }
 
 const gridSizes = [8, 16, 24, 25, 32, 48, 64]
@@ -73,7 +74,7 @@ function SettingRow({
   )
 }
 
-export function SettingsPanel({ onBack }: Props) {
+export function SettingsPanel({ onBack, backLabel = 'Back to projects' }: Props) {
   const { mode, setMode } = useThemeStore()
   const {
     showGrid,
@@ -96,7 +97,8 @@ export function SettingsPanel({ onBack }: Props) {
       <header className="flex h-14 shrink-0 items-center border-b border-border px-5">
         <button
           onClick={onBack}
-          aria-label="Back to projects"
+          aria-label={backLabel}
+          title={backLabel}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
         >
           <ArrowLeft size={17} strokeWidth={1.7} />

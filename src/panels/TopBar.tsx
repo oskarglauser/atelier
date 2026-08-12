@@ -5,9 +5,9 @@ import { getStageRef } from '../store/stageRef'
 import { captureThumbnail } from '../canvas/captureThumbnail'
 import { useUIStore } from '../store/uiStore'
 import { KeyboardShortcutsDialog } from '../ui/KeyboardShortcutsDialog'
-import { Undo2, Redo2, ChevronLeft, ChevronDown, Plus, Keyboard } from 'lucide-react'
+import { Undo2, Redo2, ChevronLeft, ChevronDown, Plus, Keyboard, Settings } from 'lucide-react'
 
-export function TopBar() {
+export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { canUndo, canRedo, undo, redo } = useHistoryStore()
   const rawCloseProject = useProjectStore((s) => s.closeProject)
   const saveThumbnail = useProjectStore((s) => s.saveThumbnail)
@@ -154,6 +154,14 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-0.5">
+        <button
+          onClick={onOpenSettings}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
+          aria-label="Open settings"
+          title="Settings"
+        >
+          <Settings size={14} strokeWidth={1.5} />
+        </button>
         <button
           onClick={() => setShortcutHelpOpen(true)}
           className="mr-1 flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
