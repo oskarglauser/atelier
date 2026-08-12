@@ -3,6 +3,7 @@ import type { TextShape } from '../types/document'
 import { isTauri } from '../utils/isTauri'
 
 const fontCache = new Map<string, opentype.Font>()
+const pendingFonts = new Map<string, Promise<opentype.Font | null>>()
 
 interface LocalFontData {
   family: string
@@ -15,7 +16,7 @@ interface LocalFontData {
 let cachedLocalFontList: LocalFontData[] | null = null
 
 /** Try loading a local font via the Local Font Access API (Chrome/Edge) */
-async function getLocalFont(family: string, weight: number): Promise<opentype.Font | null> {
+async function getLocalFont(family: string, weight: number, style: TextShape['fontStyle']): Promise<opentype.Font | null> {
   if (!('queryLocalFonts' in window)) return null
 
   try {
@@ -27,9 +28,15 @@ async function getLocalFont(family: string, weight: number): Promise<opentype.Fo
     const familyFonts = fonts.filter((f) => f.family === family)
     if (familyFonts.length === 0) return null
 
-    // Try to find the right weight variant (Regular for 400, Bold for 700, etc.)
+    // Try to find the right style and weight variant.
+    const styledFonts = familyFonts.filter((f) =>
+      style === 'italic'
+        ? f.style.toLowerCase().includes('italic')
+        : !f.style.toLowerCase().includes('italic')
+    )
+    const candidates = styledFonts.length > 0 ? styledFonts : familyFonts
     const weightName = weight <= 400 ? 'Regular' : weight >= 700 ? 'Bold' : 'Medium'
-    const match = familyFonts.find((f) => f.style.includes(weightName)) || familyFonts[0]
+    const match = candidates.find((f) => f.style.includes(weightName)) || candidates[0]
 
     const blob = await match.blob()
     const buffer = await blob.arrayBuffer()
@@ -60,57 +67,85 @@ async function getTauriFont(family: string): Promise<opentype.Font | null> {
 /**
  * Load font from Google Fonts API.
  *
- * Note: opentype.js parses ttf/otf/woff but not woff2, and the css2 API decides
- * the format from the browser's User-Agent (which fetch() cannot override), so
- * modern browsers are usually offered woff2 only. When no parseable source is
- * available we fail gracefully. TODO: add a WOFF2 decoder (or fetch static TTFs,
- * e.g. from Fontsource) for full Google Fonts outline support.
+ * Google Fonts serves modern browsers WOFF2. Decode that payload to sfnt before
+ * handing it to opentype.js. The `text` query produces one small subset that
+ * contains exactly the glyphs this outline operation needs.
  */
-async function getGoogleFont(family: string, weight: number): Promise<opentype.Font | null> {
+async function getGoogleFont(
+  family: string,
+  weight: number,
+  style: TextShape['fontStyle'],
+  text: string,
+): Promise<opentype.Font | null> {
   try {
     const encoded = encodeURIComponent(family)
-    const cssUrl = `https://fonts.googleapis.com/css2?family=${encoded}:wght@${weight}&display=swap`
+    const variant = style === 'italic' ? `:ital,wght@1,${weight}` : `:wght@${weight}`
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${encoded}${variant}&text=${encodeURIComponent(text)}&display=swap`
     const cssRes = await fetch(cssUrl)
+    if (!cssRes.ok) throw new Error(`Google Fonts CSS request failed (${cssRes.status})`)
     const css = await cssRes.text()
 
     const urls = [...css.matchAll(/url\(([^)]+)\)/g)].map(m => m[1].replace(/['"]/g, ''))
-    const parseable = urls.find((u) => /\.(ttf|otf|woff)(\?|$)/i.test(u))
-    if (!parseable) {
-      console.warn(`No opentype.js-parseable source (ttf/otf/woff) offered for "${family}" — cannot build outlines`)
-      return null
-    }
+    const sourceUrl = urls.at(-1)
+    if (!sourceUrl) throw new Error(`Google Fonts returned no source for "${family}"`)
 
-    const fontRes = await fetch(parseable)
+    const fontRes = await fetch(sourceUrl)
+    if (!fontRes.ok) throw new Error(`Google Fonts file request failed (${fontRes.status})`)
     const buffer = await fontRes.arrayBuffer()
+    const signature = new DataView(buffer).getUint32(0, false)
+    if (signature === 0x774f4632) { // wOF2
+      const { woff2Decode } = await import('woff-lib/woff2/decode')
+      const decoded = await woff2Decode(buffer)
+      return opentype.parse(decoded.buffer.slice(decoded.byteOffset, decoded.byteOffset + decoded.byteLength))
+    }
     return opentype.parse(buffer)
-  } catch {
+  } catch (error) {
+    console.warn(`Failed to load Google Font "${family}" for outlines`, error)
     return null
   }
 }
 
-async function getFont(family: string, weight: number): Promise<opentype.Font | null> {
-  const key = `${family}:${weight}`
+function glyphSignature(text: string): string {
+  return [...new Set(Array.from(text))].sort().join('')
+}
+
+async function getFont(
+  family: string,
+  weight: number,
+  style: TextShape['fontStyle'],
+  text: string,
+): Promise<opentype.Font | null> {
+  const key = `${family}:${weight}:${style}:${glyphSignature(text)}`
   if (fontCache.has(key)) return fontCache.get(key)!
+  if (pendingFonts.has(key)) return pendingFonts.get(key)!
 
-  // Try local font sources first, then Google Fonts
-  const font =
-    await getTauriFont(family) ||
-    await getLocalFont(family, weight) ||
-    await getGoogleFont(family, weight)
+  const request = (async () => {
+    // Try local font sources first, then Google Fonts.
+    const font =
+      await getTauriFont(family) ||
+      await getLocalFont(family, weight, style) ||
+      await getGoogleFont(family, weight, style, text)
 
-  if (font) {
-    fontCache.set(key, font)
-  } else {
-    console.warn('Failed to load font for outlines:', family, weight)
+    if (font) fontCache.set(key, font)
+    else console.warn('Failed to load font for outlines:', family, weight, style)
+    return font
+  })()
+
+  pendingFonts.set(key, request)
+  try {
+    return await request
+  } finally {
+    pendingFonts.delete(key)
   }
-  return font
 }
 
 export async function textToOutlines(shape: TextShape): Promise<{ pathData: string; width: number; height: number } | null> {
-  const font = await getFont(shape.fontFamily, shape.fontWeight)
+  const text = applyTransform(shape.text, shape.textTransform)
+  if (!text.trim()) return null
+
+  const font = await getFont(shape.fontFamily, shape.fontWeight, shape.fontStyle, text)
   if (!font) return null
 
-  const text = applyTransform(shape.text, shape.textTransform)
   const fontSize = shape.fontSize
   const scale = fontSize / font.unitsPerEm
   const ascender = font.ascender * scale

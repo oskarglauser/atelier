@@ -1,7 +1,7 @@
 {
   "name": "atelier",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -27,6 +27,7 @@
     "react-colorful": "^5.6.1",
     "react-dom": "^19.2.4",
     "react-konva": "^19.2.3",
+    "woff-lib": "^0.0.3",
     "y-indexeddb": "^9.0.12",
     "yjs": "^13.6.30",
     "zustand": "^5.0.12"

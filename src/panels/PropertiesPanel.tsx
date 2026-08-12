@@ -140,20 +140,20 @@ function CanvasSettingsPanel() {
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-text-secondary">Show dots</span>
-            <Switch checked={showGrid} onChange={setShowGrid} />
+            <Switch checked={showGrid} onChange={setShowGrid} ariaLabel="Show grid dots" />
           </div>
           <NumberField label="Size" value={gridSize} onChange={setGridSize} min={5} step={5} />
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-text-secondary">Snap to grid</span>
-            <Switch checked={snapToGrid} onChange={setSnapToGrid} />
+            <Switch checked={snapToGrid} onChange={setSnapToGrid} ariaLabel="Snap to grid" />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-text-secondary">Snap to rulers</span>
-            <Switch checked={snapToRulers} onChange={setSnapToRulers} />
+            <Switch checked={snapToRulers} onChange={setSnapToRulers} ariaLabel="Snap to rulers" />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-text-secondary">Show rulers</span>
-            <Switch checked={showRulers} onChange={setShowRulers} />
+            <Switch checked={showRulers} onChange={setShowRulers} ariaLabel="Show rulers" />
           </div>
         </div>
       </Section>
@@ -305,7 +305,7 @@ function ExportSection({ shapes, allShapes, update }: { shapes: Shape[]; allShap
         {hasFrame && (
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-text-secondary">Include frame</span>
-            <Switch checked={includeFrame} onChange={setIncludeFrame} />
+            <Switch checked={includeFrame} onChange={setIncludeFrame} ariaLabel="Include frame in export" />
           </div>
         )}
 
@@ -783,7 +783,7 @@ export function PropertiesPanel() {
         <Section title="Frame">
           <div className="flex items-center justify-between">
             <span className="text-[12px] text-text-secondary">Clip content</span>
-            <Switch checked={(first as FrameShape).clipContent} onChange={(v) => update('clipContent', v)} />
+            <Switch checked={(first as FrameShape).clipContent} onChange={(v) => update('clipContent', v)} ariaLabel="Clip frame content" />
           </div>
         </Section>
       )}

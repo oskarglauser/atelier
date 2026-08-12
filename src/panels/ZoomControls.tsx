@@ -48,7 +48,7 @@ export function ZoomControls() {
   }
 
   return (
-    <div className="absolute bottom-4 right-3 flex items-center bg-bg-secondary/95 backdrop-blur-md border border-border rounded-xl z-10" ref={dropdownRef}>
+    <div className="absolute bottom-4 right-3 flex items-center bg-bg-secondary/90 backdrop-blur-xl border border-border-light/70 rounded-xl z-10 shadow-[0_10px_32px_rgba(0,0,0,0.16)]" ref={dropdownRef}>
       <button
         onClick={zoomOut}
         className="w-8 h-8 flex items-center justify-center text-text-dim hover:text-text transition-colors"

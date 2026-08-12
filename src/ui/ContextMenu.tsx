@@ -53,7 +53,8 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
   return (
     <div
       ref={ref}
-      className="fixed bg-bg-secondary border border-border rounded-lg shadow-2xl py-1 min-w-[180px] z-[200]"
+      role="menu"
+      className="fixed bg-bg-secondary/95 backdrop-blur-xl border border-border-light/70 rounded-xl shadow-2xl py-1.5 min-w-[190px] z-[200]"
       style={{ left: x, top: y }}
     >
       {items.map((item, i) => {
@@ -64,6 +65,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
         return (
           <button
             key={i}
+            role="menuitem"
             disabled={item.disabled}
             onClick={() => { item.action(); onClose() }}
             className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] transition-colors disabled:opacity-30 disabled:pointer-events-none ${

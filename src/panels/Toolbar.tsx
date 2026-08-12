@@ -21,11 +21,13 @@ export function Toolbar() {
   const { activeTool, setActiveTool } = useUIStore()
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-bg-secondary/95 backdrop-blur-md border border-border rounded-xl px-1 py-1 shadow-2xl">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-bg-secondary/90 backdrop-blur-xl border border-border-light/70 rounded-xl px-1 py-1 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
       {tools.map((tool) => (
         <button
           key={tool.type}
           onClick={() => setActiveTool(tool.type)}
+          aria-label={`${tool.label} tool`}
+          aria-pressed={activeTool === tool.type}
           className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
             activeTool === tool.type
               ? 'bg-accent text-white shadow-sm'

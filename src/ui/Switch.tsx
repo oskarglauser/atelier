@@ -4,13 +4,15 @@ interface Props {
   checked: boolean
   onChange: (checked: boolean) => void
   disabled?: boolean
+  ariaLabel?: string
 }
 
-export const Switch = memo(function Switch({ checked, onChange, disabled }: Props) {
+export const Switch = memo(function Switch({ checked, onChange, disabled, ariaLabel }: Props) {
   return (
     <button
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{ backgroundColor: checked ? 'var(--color-accent)' : 'var(--color-bg-active)' }}

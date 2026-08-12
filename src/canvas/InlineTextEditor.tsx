@@ -4,7 +4,7 @@ import { useUIStore } from '../store/uiStore'
 import { useDocument } from '../hooks/useDocument'
 import { useShapes } from '../hooks/useShapes'
 import { useViewportStore } from '../store/viewportStore'
-import { updateShape } from '../document/operations'
+import { deleteShapes, updateShape } from '../document/operations'
 import { loadGoogleFont } from '../fonts/fontLoader'
 import type { TextShape } from '../types/document'
 
@@ -113,6 +113,9 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
         text,
         kerning: kerningRef.current,
       } as Partial<TextShape>)
+    } else {
+      deleteShapes(doc, activePageId, new Set([editingTextId]))
+      useUIStore.getState().clearSelection()
     }
     setEditingTextId(null)
     finishingRef.current = false

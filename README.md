@@ -12,12 +12,20 @@ Atelier fills the gap between Illustrator and Figma for brand designers: a fast,
 
 - **Vector precision** — full pen tool, freehand drawing, boolean operations (union, subtract, intersect, exclude), and path editing.
 - **CMYK soft-proofing** — preview how colors and images will behave in print, something browser-based design tools typically don't offer.
-- **Typography** — use every font installed on your system (native enumeration in the desktop app, Local Font Access API in Chrome/Edge), browse Google Fonts, and convert text to outlines for final delivery.
+- **Typography** — use every font installed on your system (native enumeration in the desktop app, Local Font Access API in Chrome/Edge), browse Google Fonts, and convert WOFF2 web fonts to editable outlines across modern browsers.
 - **Frames, groups & layers** — nested frames that clip and auto-include content, groups that move as one, drag-and-drop layer reordering.
-- **Gradients & fills** — linear and radial gradients with optional noise texture.
-- **Export anywhere** — SVG, PNG, PDF, or copy as code.
+- **Gradients & fills** — linear gradients with optional noise texture.
+- **Export anywhere** — SVG, PNG, JPG, EPS, PDF, or copy as code.
 - **Local-first** — projects are persisted to IndexedDB using [Yjs](https://yjs.dev) CRDTs. No backend, no telemetry, no account. Your work never leaves your machine.
 - **Multi-page projects** with full undo/redo history.
+- **Focused workspace** — light, dark, and system themes with persistent grid, snapping, ruler, color-mode, and export preferences.
+
+## What's new in 0.5.0
+
+- Google Fonts served as WOFF2 can now be decoded locally and converted to vector outlines in the browser.
+- The settings screen now controls real canvas and export preferences; placeholder options were removed.
+- Project cards, dialogs, menus, toolbars, themes, focus states, and pointer feedback received a minimal visual refinement.
+- Outline conversion, empty text layers, and context-menu copy/paste behavior were hardened during a full interaction review.
 
 ## Getting started
 
@@ -58,7 +66,6 @@ Nothing else. No analytics, no tracking.
 ## Roadmap
 
 - Opening and saving Figma (`.fig`) and Illustrator (`.ai`) files
-- WOFF2 decoding so Google Fonts can be converted to outlines in all browsers
 - Windows and Linux desktop builds
 - Real-time collaboration
 
@@ -66,7 +73,7 @@ Contributions toward any of these are very welcome — see [CONTRIBUTING.md](CON
 
 ## Tech stack
 
-React 19 · TypeScript · Vite · Tailwind CSS 4 · Konva.js (canvas rendering) · Yjs (document model / undo / persistence) · Zustand (UI state) · Paper.js (boolean ops) · opentype.js (text to outlines) · Tauri 2 (desktop shell)
+React 19 · TypeScript · Vite · Tailwind CSS 4 · Konva.js (canvas rendering) · Yjs (document model / undo / persistence) · Zustand (UI state) · Paper.js (boolean ops) · opentype.js + woff-lib (text to outlines) · Tauri 2 (desktop shell)
 
 ## License
 

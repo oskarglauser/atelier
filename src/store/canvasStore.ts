@@ -3,6 +3,7 @@ import { create } from 'zustand'
 const STORAGE_KEY = 'atelier-canvas-settings'
 
 export type ColorMode = 'rgb' | 'cmyk'
+export type ExportScaleSetting = '0.5x' | '1x' | '2x' | '3x' | '4x'
 
 interface CanvasSettings {
   backgroundColor: string
@@ -13,7 +14,7 @@ interface CanvasSettings {
   showRulers: boolean
   colorMode: ColorMode
   lastExportFormat: string
-  lastExportScale: string
+  lastExportScale: ExportScaleSetting
 
   setBackgroundColor: (color: string) => void
   setShowGrid: (show: boolean) => void
@@ -23,6 +24,7 @@ interface CanvasSettings {
   setShowRulers: (show: boolean) => void
   setColorMode: (mode: ColorMode) => void
   setLastExport: (format: string, scale: string) => void
+  setDefaultExportScale: (scale: ExportScaleSetting) => void
 }
 
 function loadSettings(): Partial<CanvasSettings> {
@@ -60,7 +62,7 @@ export const useCanvasStore = create<CanvasSettings>((set, get) => ({
   showRulers: saved.showRulers ?? true,
   colorMode: (saved.colorMode as ColorMode) ?? 'rgb',
   lastExportFormat: (saved.lastExportFormat as string) || 'png',
-  lastExportScale: (saved.lastExportScale as string) || '2x',
+  lastExportScale: (saved.lastExportScale as ExportScaleSetting) || '2x',
 
   setBackgroundColor: (color) => { set({ backgroundColor: color }); saveSettings({ ...get(), backgroundColor: color }) },
   setShowGrid: (show) => { set({ showGrid: show }); saveSettings({ ...get(), showGrid: show }) },
@@ -69,7 +71,15 @@ export const useCanvasStore = create<CanvasSettings>((set, get) => ({
   setSnapToRulers: (snap) => { set({ snapToRulers: snap }); saveSettings({ ...get(), snapToRulers: snap }) },
   setShowRulers: (show) => { set({ showRulers: show }); saveSettings({ ...get(), showRulers: show }) },
   setColorMode: (mode) => { set({ colorMode: mode }); saveSettings({ ...get(), colorMode: mode }) },
-  setLastExport: (format, scale) => { set({ lastExportFormat: format, lastExportScale: scale }); saveSettings({ ...get(), lastExportFormat: format, lastExportScale: scale }) },
+  setLastExport: (format, scale) => {
+    const exportScale = scale as ExportScaleSetting
+    set({ lastExportFormat: format, lastExportScale: exportScale })
+    saveSettings({ ...get(), lastExportFormat: format, lastExportScale: exportScale })
+  },
+  setDefaultExportScale: (scale) => {
+    set({ lastExportScale: scale })
+    saveSettings({ ...get(), lastExportScale: scale })
+  },
 }))
 
 export function snapValue(v: number): number {

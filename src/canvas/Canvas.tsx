@@ -29,6 +29,15 @@ import { PenToolOverlay } from './PenToolOverlay'
 import { ContextMenu, type MenuEntry } from '../ui/ContextMenu'
 import { Copy, Clipboard, Trash2, CopyPlus, ArrowUpToLine, ArrowDownToLine, Group, Ungroup, Merge, Minus as MinusIcon, SquaresIntersect, Diff, TypeOutline, ImageIcon, FileCode } from 'lucide-react'
 
+function dispatchEditorShortcut(key: 'c' | 'v') {
+  window.dispatchEvent(new KeyboardEvent('keydown', {
+    key,
+    metaKey: true,
+    ctrlKey: true,
+    bubbles: true,
+  }))
+}
+
 export function Canvas() {
   const stageRef = useRef<Konva.Stage>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -596,6 +605,9 @@ export function Canvas() {
         if (result) conversions.push({ source: s as TextShape, result })
       }
     }
+    if (conversions.length === 0) return
+
+    const convertedIds = new Set(conversions.map(({ source }) => source.id))
     doc.transact(() => {
       for (const { source, result } of conversions) {
         const newShape = addShape(doc, activePageId, 'path', {
@@ -613,9 +625,9 @@ export function Canvas() {
         const srcIdx = live.findIndex((s) => s.id === source.id)
         if (srcIdx >= 0) reorderShape(doc, activePageId, newShape.id, srcIdx)
       }
-      deleteShapes(doc, activePageId, selectedIds)
+      deleteShapes(doc, activePageId, convertedIds)
     }, 'local')
-    clearSelection()
+    setSelectedIds(new Set())
   }
 
   const copyAsPng = useCallback(async () => {
@@ -669,10 +681,10 @@ export function Canvas() {
   const contextMenuItems: MenuEntry[] = selectedIds.size > 0
     ? [
         { label: 'Duplicate', icon: CopyPlus, shortcut: '⌘D', action: () => duplicateShapes(doc, activePageId, selectedIds) },
-        { label: 'Copy', icon: Copy, shortcut: '⌘C', action: () => {} },
+        { label: 'Copy', icon: Copy, shortcut: '⌘C', action: () => dispatchEditorShortcut('c') },
         { label: 'Copy as PNG', icon: ImageIcon, action: copyAsPng },
         { label: 'Copy as SVG', icon: FileCode, action: copyAsSvg },
-        { label: 'Paste', icon: Clipboard, shortcut: '⌘V', action: () => {} },
+        { label: 'Paste', icon: Clipboard, shortcut: '⌘V', action: () => dispatchEditorShortcut('v') },
         { divider: true },
         ...(selectedIds.size >= 2 ? [{ label: 'Group', icon: Group, shortcut: '⌘G', action: () => {
           const gid = groupShapes(doc, activePageId, selectedIds)
@@ -710,7 +722,7 @@ export function Canvas() {
         { label: 'Delete', icon: Trash2, shortcut: '⌫', danger: true, action: () => { deleteShapes(doc, activePageId, selectedIds); clearSelection() } },
       ]
     : [
-        { label: 'Paste', icon: Clipboard, shortcut: '⌘V', action: () => {} },
+        { label: 'Paste', icon: Clipboard, shortcut: '⌘V', action: () => dispatchEditorShortcut('v') },
         { divider: true },
         { label: 'Select All', shortcut: '⌘A', action: () => setSelectedIds(new Set(shapes.map((s) => s.id))) },
       ]

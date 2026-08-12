@@ -18,35 +18,35 @@
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
-/* Dark theme (default) — pure black */
+/* Dark theme */
 :root,
 [data-theme="dark"] {
-  --theme-bg: #000000;
-  --theme-bg-secondary: #050505;
-  --theme-bg-tertiary: #111111;
-  --theme-bg-hover: #1a1a1a;
-  --theme-bg-active: #242424;
-  --theme-border: #1a1a1a;
-  --theme-border-light: #2a2a2a;
-  --theme-text: #ffffff;
-  --theme-text-secondary: #aaaaaa;
-  --theme-text-dim: #777777;
-  --theme-canvas: #fafafa;
+  --theme-bg: #0b0c0e;
+  --theme-bg-secondary: #101114;
+  --theme-bg-tertiary: #181a1e;
+  --theme-bg-hover: #202329;
+  --theme-bg-active: #292d34;
+  --theme-border: #24272d;
+  --theme-border-light: #343840;
+  --theme-text: #f4f5f7;
+  --theme-text-secondary: #b0b4bc;
+  --theme-text-dim: #747983;
+  --theme-canvas: #f4f4f2;
 }
 
-/* Light theme — pure white */
+/* Light theme */
 [data-theme="light"] {
-  --theme-bg: #ffffff;
-  --theme-bg-secondary: #fcfcfc;
-  --theme-bg-tertiary: #f5f5f5;
-  --theme-bg-hover: #ebebeb;
-  --theme-bg-active: #e0e0e0;
-  --theme-border: #e0e0e0;
-  --theme-border-light: #c0c0c0;
-  --theme-text: #000000;
-  --theme-text-secondary: #222222;
-  --theme-text-dim: #444444;
-  --theme-canvas: #fafafa;
+  --theme-bg: #f7f7f5;
+  --theme-bg-secondary: #ffffff;
+  --theme-bg-tertiary: #f0f0ed;
+  --theme-bg-hover: #e9e9e5;
+  --theme-bg-active: #dfdfda;
+  --theme-border: #e3e3de;
+  --theme-border-light: #cacac3;
+  --theme-text: #171816;
+  --theme-text-secondary: #4d504b;
+  --theme-text-dim: #7a7e76;
+  --theme-canvas: #f1f1ee;
 }
 
 html, body, #root {
@@ -64,6 +64,30 @@ html, body, #root {
 
 * {
   box-sizing: border-box;
+}
+
+button,
+a,
+select,
+summary,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+:where(button, a, input, select, textarea, [role="button"]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: white;
+  background: rgba(74, 158, 255, 0.78);
 }
 
 ::-webkit-scrollbar {

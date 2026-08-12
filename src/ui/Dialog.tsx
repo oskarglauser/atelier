@@ -44,19 +44,20 @@ export function Dialog({ open, onClose, title, children, footer, maxWidth = 'max
         if (e.target === overlayRef.current) onClose()
       }}
     >
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={`relative ${maxWidth} w-full mx-4 bg-bg-secondary rounded-xl shadow-2xl border border-border outline-none animate-in fade-in zoom-in-95 duration-150`}
+        className={`relative ${maxWidth} w-full mx-4 bg-bg-secondary rounded-2xl shadow-2xl border border-border-light/70 outline-none animate-in fade-in zoom-in-95 duration-150`}
       >
         {title && (
           <div className="flex items-center justify-between px-5 pt-4 pb-0">
             <h2 className="text-[15px] font-semibold text-text">{title}</h2>
             <button
               onClick={onClose}
+              aria-label="Close dialog"
               className="w-6 h-6 flex items-center justify-center rounded-md text-text-dim hover:text-text hover:bg-bg-hover transition-colors"
             >
               <X size={14} />
