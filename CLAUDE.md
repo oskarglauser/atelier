@@ -14,7 +14,7 @@ Atelier is a browser-based vector design tool (similar to Figma) built as a clie
 - `npm run preview` — Preview production build
 - `npm run tauri:dev` — Run the desktop app in dev mode (requires Rust)
 - `npm run tauri:build` — Build the desktop app bundle
-- No test framework is configured
+- `npm test` — Vitest (`npm run test:watch` to watch). Runs in CI.
 
 ## Architecture
 
@@ -43,3 +43,29 @@ Atelier is a browser-based vector design tool (similar to Figma) built as a clie
 - All shape data mutations must go through Yjs transactions (via `doc.transact()`) to preserve undo/redo and future collaboration support.
 - Zustand stores are for ephemeral UI state only — never persist shape data in Zustand.
 - IDs are generated with `nanoid`.
+
+## Schema evolution
+
+Documents are persisted forever and only ever contain the fields the build that
+wrote them knew about — `shapeToYMap` writes the keys present on the object, so
+a field added later is absent from older documents permanently. Two mechanisms
+handle that; use the right one:
+
+- **Adding a field → add a default, nothing else.** Put it in `baseDefaults` or
+  `typeDefaults` (`src/document/schema.ts`). `normalizeShape` applies those on
+  every read, so old documents come back complete. Do *not* add `?? fallback`
+  guards at call sites — that pushes correctness onto whoever writes the next
+  call site.
+- **Anything defaults can't express → add a migration.** Renames, changed units,
+  repurposed fields, structural repair. Append to `migrations` in
+  `src/document/migrations.ts` and bump `CURRENT_SCHEMA_VERSION`. Migrations must
+  be idempotent and run under the `'migration'` origin so they stay off the undo
+  stack.
+
+`yMapToStored` returns `StoredShape` (everything optional) rather than `Shape`.
+That is deliberate: only `normalizeShape` produces a `Shape`, so the compiler
+catches code that reads storage without normalizing. Don't cast around it.
+
+Cover schema changes with a fixture in `src/document/__fixtures__/legacyDoc.ts`
+— it builds documents holding only the fields a given era wrote, which is how
+old-content regressions get caught before release.

@@ -1,6 +1,6 @@
 import * as Y from 'yjs'
 import type { Shape, ShapeType } from '../types/document'
-import { createShapeData } from './schema'
+import { createShapeData, baseDefaults, typeDefaults } from './schema'
 import { getShapesArray } from './createDoc'
 import {
   buildShapeIndex,
@@ -37,7 +37,33 @@ function shapeToYMap(shape: Shape): Y.Map<unknown> {
   return map
 }
 
-export function yMapToShape(map: Y.Map<unknown>): Shape {
+/**
+ * A shape exactly as stored: only the keys that build actually wrote. Fields
+ * added in later versions are simply absent, so this is deliberately not a
+ * `Shape` — claiming otherwise is what let missing fields reach consumers
+ * typed against a complete shape.
+ */
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
+  k: infer I
+) => void
+  ? I
+  : never
+
+/** Omit applied per-variant, so variant-specific fields survive the union */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+/**
+ * Every field any shape variant can carry, all optional. The `type` discriminant
+ * is removed before merging — intersecting its literal types would collapse the
+ * whole thing to `never` — and re-added as the open ShapeType.
+ */
+export type StoredShape = Partial<UnionToIntersection<DistributiveOmit<Shape, 'type'>>> & {
+  id: string
+  type: ShapeType
+}
+
+/** Decode a Y.Map into the raw stored fields, without filling anything in. */
+export function yMapToStored(map: Y.Map<unknown>): StoredShape {
   const obj: Record<string, unknown> = {}
   map.forEach((value, key) => {
     if (value instanceof Y.Array) {
@@ -52,7 +78,29 @@ export function yMapToShape(map: Y.Map<unknown>): Shape {
       obj[key] = value
     }
   })
-  return obj as unknown as Shape
+  return obj as StoredShape
+}
+
+/**
+ * Fill in every field a shape of this type should have. The only place a
+ * `Shape` is produced from stored data — so a document written by any past
+ * version reads back complete, and consumers never need per-field guards.
+ *
+ * Stored values always win; defaults only supply what is absent.
+ */
+export function normalizeShape(stored: StoredShape): Shape {
+  const defaults = typeDefaults[stored.type] ?? {}
+  const result: Record<string, unknown> = { ...baseDefaults, ...defaults }
+  // Assign explicitly rather than spreading: a key stored as undefined must not
+  // clobber its default, which a spread would do.
+  for (const [key, value] of Object.entries(stored)) {
+    if (value !== undefined) result[key] = value
+  }
+  return result as unknown as Shape
+}
+
+export function yMapToShape(map: Y.Map<unknown>): Shape {
+  return normalizeShape(yMapToStored(map))
 }
 
 export function addShape(doc: Y.Doc, pageId: string, type: ShapeType, overrides: Partial<Shape> = {}, _origin = 'local'): Shape {

@@ -2,7 +2,11 @@ import type { Shape, ShapeType } from '../types/document'
 import { generateId } from '../utils/id'
 import { DEFAULT_FILL, DEFAULT_STROKE, DEFAULT_STROKE_WIDTH, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_FONT_WEIGHT, DEFAULT_TEXT } from '../utils/constants'
 
-const baseDefaults = {
+/**
+ * Field defaults shared by creation and by normalization on read, so a shape
+ * written by an older build ends up identical to one created today.
+ */
+export const baseDefaults = {
   name: '',
   x: 0,
   y: 0,
@@ -19,7 +23,7 @@ const baseDefaults = {
   parentId: null,
 }
 
-const typeDefaults: Record<ShapeType, Partial<Shape>> = {
+export const typeDefaults: Record<ShapeType, Partial<Shape>> = {
   rectangle: { cornerRadius: [0, 0, 0, 0] },
   ellipse: {},
   line: { points: [0, 0, 100, 0], fill: '', stroke: '#000000', strokeWidth: 2, startCap: 'none', endCap: 'none' },

@@ -3,6 +3,7 @@ import * as Y from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { createDoc, ensureDefaultPage, getPages, getShapesArray } from '../document/createDoc'
 import { createUndoManager } from '../document/undoManager'
+import { runMigrations } from '../document/migrations'
 import { useHistoryStore } from '../store/historyStore'
 import { useProjectStore } from '../projects/projectStore'
 import type { Page } from '../types/document'
@@ -30,6 +31,9 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
     persistenceRef.current = persistence
 
     persistence.once('synced', () => {
+      // Before anything reads the document: IndexedDB has replayed, so this is
+      // the only point where the stored schema is known and still untouched.
+      runMigrations(newDoc)
       ensureDefaultPage(newDoc)
       const docPages = getPages(newDoc)
       setPages(docPages)
