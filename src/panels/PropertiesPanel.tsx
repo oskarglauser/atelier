@@ -29,6 +29,7 @@ import {
   Italic, Underline, Strikethrough,
   CaseSensitive, CaseUpper, CaseLower,
   Baseline, ALargeSmall, MoveVertical, WholeWord, WrapText,
+  AlignHorizontalDistributeCenter, Sparkles, Text,
   Download, Trash2, Plus, Ruler, Link, Unlink,
 } from 'lucide-react'
 
@@ -830,6 +831,13 @@ export function PropertiesPanel() {
               >
                 <Strikethrough size={14} strokeWidth={2} />
               </ToggleButton>
+              <ToggleButton
+                active={textShape.fontVariant === 'small-caps'}
+                onClick={() => update('fontVariant' as keyof Shape, textShape.fontVariant === 'small-caps' ? 'normal' : 'small-caps')}
+                title="Small caps"
+              >
+                <span className="text-[10px] font-semibold tracking-wide">ᴀᴀ</span>
+              </ToggleButton>
             </div>
           </Section>
 
@@ -877,6 +885,30 @@ export function PropertiesPanel() {
                 title="Align bottom"
               >
                 <AlignVerticalJustifyEnd size={14} strokeWidth={1.5} />
+              </ToggleButton>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <span className="text-[11px] text-text-dim mr-1.5">Wrap</span>
+              <ToggleButton
+                active={textShape.textWrap === 'auto'}
+                onClick={() => update('textWrap' as keyof Shape, 'auto')}
+                title="Auto — break lines greedily"
+              >
+                <Text size={14} strokeWidth={1.5} />
+              </ToggleButton>
+              <ToggleButton
+                active={textShape.textWrap === 'balance'}
+                onClick={() => update('textWrap' as keyof Shape, 'balance')}
+                title="Balance — even out line lengths"
+              >
+                <AlignHorizontalDistributeCenter size={14} strokeWidth={1.5} />
+              </ToggleButton>
+              <ToggleButton
+                active={textShape.textWrap === 'pretty'}
+                onClick={() => update('textWrap' as keyof Shape, 'pretty')}
+                title="Pretty — avoid a lone word on the last line"
+              >
+                <Sparkles size={14} strokeWidth={1.5} />
               </ToggleButton>
             </div>
           </Section>

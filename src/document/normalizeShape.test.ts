@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeShape, yMapToStored, getAllShapes, type StoredShape } from './operations'
-import { makeLegacyDoc, legacyFrame, legacyRect, legacyPath } from './__fixtures__/legacyDoc'
-import type { FrameShape, PathShape, RectangleShape } from '../types/document'
+import { makeLegacyDoc, legacyFrame, legacyRect, legacyPath, legacyText } from './__fixtures__/legacyDoc'
+import type { FrameShape, PathShape, RectangleShape, TextShape } from '../types/document'
 
 describe('normalizeShape', () => {
   it('fills in fields that did not exist when the shape was written', () => {
@@ -24,6 +24,12 @@ describe('normalizeShape', () => {
 
     const frame = normalizeShape(legacyFrame as StoredShape)
     expect(frame.isMask).toBe(false)
+  })
+
+  it('backfills textWrap and fontVariant on text written before they existed', () => {
+    const text = normalizeShape(legacyText as StoredShape) as TextShape
+    expect(text.textWrap).toBe('auto')
+    expect(text.fontVariant).toBe('normal')
   })
 
   it('preserves stored fillRule and isMask', () => {

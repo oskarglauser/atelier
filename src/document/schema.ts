@@ -43,6 +43,8 @@ export const typeDefaults: Record<ShapeType, Partial<Shape>> = {
     textTransform: 'none' as const,
     paragraphSpacing: 0,
     kerning: [],
+    textWrap: 'auto' as const,
+    fontVariant: 'normal' as const,
     fill: '#000000',
     width: 300,
     height: 36,

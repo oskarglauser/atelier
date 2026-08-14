@@ -74,6 +74,22 @@ export const legacyPath = {
   fill: '#00ff00',
 }
 
+/** A text shape from before textWrap and fontVariant existed (0.10.x era). */
+export const legacyText = {
+  id: 'text-legacy',
+  type: 'text',
+  name: 'Old Text',
+  x: 0,
+  y: 0,
+  width: 300,
+  height: 36,
+  text: 'Hello world',
+  fontFamily: 'Inter',
+  fontSize: 24,
+  fontWeight: 400,
+  fill: '#000000',
+}
+
 /** A rectangle from before cornerRadius and lockProportions existed. */
 export const legacyRect = {
   id: 'rect-legacy',

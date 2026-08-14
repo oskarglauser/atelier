@@ -224,6 +224,7 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
           fontFamily: shape.fontFamily,
           fontWeight: shape.fontWeight,
           fontStyle: shape.fontStyle,
+          fontVariant: shape.fontVariant,
           lineHeight: shape.lineHeight,
           letterSpacing: baseSpacing,
           textAlign: shape.textAlign,

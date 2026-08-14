@@ -84,6 +84,9 @@ export interface TextShape extends ShapeBase {
   textTransform: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
   paragraphSpacing: number
   kerning: number[]
+  /** Line-breaking strategy: balance evens out line lengths, pretty avoids a lone word on the last line */
+  textWrap: 'auto' | 'balance' | 'pretty'
+  fontVariant: 'normal' | 'small-caps'
 }
 
 export type ImageObjectFit = 'cover' | 'contain'

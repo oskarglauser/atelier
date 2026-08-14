@@ -11,8 +11,9 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 ## Highlights
 
 - **Vector tools:** A pen tool, freehand drawing, path editing, and boolean operations for union, subtract, intersect, and exclude.
+- **Advanced vector editing:** Offset paths, expanded strokes, non-destructive masks, and compound paths with even-odd holes.
 - **CMYK soft proofing:** Preview how colors and images may behave in print.
-- **Typography:** Use installed system fonts, browse Google Fonts, and convert text to editable outlines. WOFF2 fonts are decoded locally in the browser.
+- **Typography:** Use installed system fonts, browse Google Fonts, and convert text to editable outlines. WOFF2 fonts are decoded locally in the browser. Balanced and pretty text wrapping, small caps, case transforms, and per-character kerning.
 - **Frames, groups, and layers:** Nest frames, clip their contents, move grouped objects together, and reorder layers with drag and drop.
 - **Object arrangement:** Align selected objects by their edges or centers and distribute spacing evenly.
 - **Gradients and fills:** Create linear gradients and add an optional noise texture.
@@ -23,12 +24,10 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
-## What's new in 0.10.0
+## What's new in 0.11.0
 
-- Masks: select shapes and choose "Use as mask" — the bottom shape clips the ones above it, non-destructively, Figma-style.
-- Compound paths: merge shapes into one path with even-odd holes, and release them back apart.
-- Expand stroke converts any stroked shape into filled outlines.
-- Offset path creates a grown or shrunk copy of a shape at any distance.
+- Balanced and pretty text wrapping: balance evens out line lengths, pretty keeps a lone word from sitting alone on the last line.
+- Small caps as a one-click text style.
 
 ## Getting started
 
