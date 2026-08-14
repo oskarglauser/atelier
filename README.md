@@ -23,12 +23,11 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
-## What's new in 0.7.0
+## What's new in 0.8.0
 
-- Settings can now be opened from the editor without leaving the current project.
-- The web app, landing page, and desktop packages now share a clear A-shaped icon.
-- Tagged releases build native Apple Silicon and Intel macOS packages, a Windows NSIS installer, and Linux DEB and AppImage packages.
-- Platform messaging on the landing page now reflects the available desktop builds.
+- Frames can be dragged by their name label on the canvas, not just by their body.
+- Alt-dragging a shape leaves a duplicate behind instead of panning the canvas.
+- Renaming a frame by double-clicking its name works again.
 
 ## Getting started
 
