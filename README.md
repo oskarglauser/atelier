@@ -23,11 +23,10 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
-## What's new in 0.8.0
+## What's new in 0.9.0
 
-- Frames can be dragged by their name label on the canvas, not just by their body.
-- Alt-dragging a shape leaves a duplicate behind instead of panning the canvas.
-- Renaming a frame by double-clicking its name works again.
+- Alt-dragging a shape shows the copy while you drag, instead of only after you release.
+- Projects made in older versions now open with newer frame and shape settings applied automatically.
 
 ## Getting started
 
