@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeShape, yMapToStored, getAllShapes, type StoredShape } from './operations'
-import { makeLegacyDoc, legacyFrame, legacyRect } from './__fixtures__/legacyDoc'
-import type { FrameShape, RectangleShape } from '../types/document'
+import { makeLegacyDoc, legacyFrame, legacyRect, legacyPath } from './__fixtures__/legacyDoc'
+import type { FrameShape, PathShape, RectangleShape } from '../types/document'
 
 describe('normalizeShape', () => {
   it('fills in fields that did not exist when the shape was written', () => {
@@ -15,6 +15,21 @@ describe('normalizeShape', () => {
     expect(frame.visible).toBe(true)
     expect(frame.opacity).toBe(1)
     expect(frame.parentId).toBeNull()
+  })
+
+  it('backfills fillRule and isMask on shapes written before they existed', () => {
+    const path = normalizeShape(legacyPath as StoredShape) as PathShape
+    expect(path.fillRule).toBe('nonzero')
+    expect(path.isMask).toBe(false)
+
+    const frame = normalizeShape(legacyFrame as StoredShape)
+    expect(frame.isMask).toBe(false)
+  })
+
+  it('preserves stored fillRule and isMask', () => {
+    const path = normalizeShape({ ...legacyPath, fillRule: 'evenodd', isMask: true } as StoredShape) as PathShape
+    expect(path.fillRule).toBe('evenodd')
+    expect(path.isMask).toBe(true)
   })
 
   it('applies type-specific defaults', () => {

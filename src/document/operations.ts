@@ -432,6 +432,9 @@ export function ungroupShapes(doc: Y.Doc, pageId: string, groupIds: Set<string>,
       const parentId = map.get('parentId') as string | null
       if (parentId && groupParent.has(parentId)) {
         map.set('parentId', groupParent.get(parentId) ?? null)
+        // A mask only means something relative to its group's siblings —
+        // promoted children must not start clipping their new context.
+        if (map.get('isMask') === true) map.set('isMask', false)
       }
     }
     // Delete group shapes

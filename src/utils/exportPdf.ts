@@ -50,9 +50,9 @@ function drawStyle(hasFill: boolean, hasStroke: boolean, sw: number): 'FD' | 'F'
 }
 
 /** Writes the raw PDF fill/stroke operator for path-based shapes */
-function writeFillStroke(doc: jsPDF, hasFill: boolean, hasStroke: boolean, sw: number) {
-  if (hasFill && hasStroke && sw > 0) pdfWrite(doc, 'B')
-  else if (hasFill) pdfWrite(doc, 'f')
+function writeFillStroke(doc: jsPDF, hasFill: boolean, hasStroke: boolean, sw: number, evenOdd = false) {
+  if (hasFill && hasStroke && sw > 0) pdfWrite(doc, evenOdd ? 'B*' : 'B')
+  else if (hasFill) pdfWrite(doc, evenOdd ? 'f*' : 'f')
   else if (hasStroke && sw > 0) pdfWrite(doc, 'S')
 }
 
@@ -213,6 +213,8 @@ export async function downloadPdf(shapes: Shape[], scale: ExportScale) {
   const s = (v: number) => pxToMm(v, sc).toFixed(3)
 
   for (const shape of shapes) {
+    // Mask shapes don't paint (PDF clipping is a stretch goal; SVG has it)
+    if (shape.isMask && shape.visible !== false) continue
     const x = shape.x - minX
     const y = shape.y - minY
     const colorMode = shape.colorMode ?? globalColorMode
@@ -322,11 +324,11 @@ export async function downloadPdf(shapes: Shape[], scale: ExportScale) {
         break
       }
       case 'path': {
-        const pd = (shape as { pathData?: string }).pathData || ''
-        const pdfPath = svgPathToPdf(pd, x, y, sc)
+        const p = shape as { pathData?: string; fillRule?: string }
+        const pdfPath = svgPathToPdf(p.pathData || '', x, y, sc)
         if (pdfPath) {
           pdfWrite(doc, pdfPath)
-          writeFillStroke(doc, hasFill, hasStroke, sw)
+          writeFillStroke(doc, hasFill, hasStroke, sw, p.fillRule === 'evenodd')
         }
         break
       }

@@ -60,6 +60,20 @@ export const legacyFrame = {
   backgroundColor: '#ffffff',
 }
 
+/** A path from before fillRule and isMask existed (0.9.x era). */
+export const legacyPath = {
+  id: 'path-legacy',
+  type: 'path',
+  name: 'Old Path',
+  x: 5,
+  y: 5,
+  width: 60,
+  height: 40,
+  pathData: 'M 0 0 L 60 0 L 60 40 Z M 10 10 L 20 10 L 20 20 Z',
+  closed: true,
+  fill: '#00ff00',
+}
+
 /** A rectangle from before cornerRadius and lockProportions existed. */
 export const legacyRect = {
   id: 'rect-legacy',

@@ -21,13 +21,14 @@ export const baseDefaults = {
   stroke: DEFAULT_STROKE,
   strokeWidth: DEFAULT_STROKE_WIDTH,
   parentId: null,
+  isMask: false,
 }
 
 export const typeDefaults: Record<ShapeType, Partial<Shape>> = {
   rectangle: { cornerRadius: [0, 0, 0, 0] },
   ellipse: {},
   line: { points: [0, 0, 100, 0], fill: '', stroke: '#000000', strokeWidth: 2, startCap: 'none', endCap: 'none' },
-  path: { pathData: '', closed: false, fill: '', stroke: '#000000', strokeWidth: 2 },
+  path: { pathData: '', closed: false, fill: '', stroke: '#000000', strokeWidth: 2, fillRule: 'nonzero' as const },
   text: {
     text: DEFAULT_TEXT,
     fontFamily: DEFAULT_FONT_FAMILY,

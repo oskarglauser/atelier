@@ -12,6 +12,9 @@ import { useCanvasStore, snapValue } from '../store/canvasStore'
 import { snapWithRulers } from '../utils/snapToRulers'
 import { addShape, updateShape, reorderShape, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
 import { performBooleanOp } from '../operations/booleanOps'
+import { makeCompoundPath, releaseCompoundPath, canReleaseCompound } from '../operations/compoundPath'
+import { expandStrokeOnSelection, offsetSelectedPaths, canExpandStroke, canOffset } from '../operations/offsetPath'
+import { makeMask, removeMask, canUseAsMask, hasMaskInSelection } from '../operations/masks'
 import { outlineSelectedText } from '../operations/textToOutlines'
 import { alignSelectedObjects, distributeSelectedObjects } from '../operations/arrangeObjects'
 import type { Shape } from '../types/document'
@@ -36,6 +39,7 @@ import {
   AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd,
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   AlignHorizontalSpaceBetween, AlignVerticalSpaceBetween,
+  Combine, Split, Expand, Spline, Scissors, SquareDashed,
 } from 'lucide-react'
 
 function dispatchEditorShortcut(key: 'c' | 'v') {
@@ -631,6 +635,35 @@ export function Canvas() {
     if (outlineIds.length > 0) setSelectedIds(new Set(outlineIds))
   }
 
+  const canCompound = selected.length >= 2
+  const canRelease = canReleaseCompound(selected)
+  const canExpand = canExpandStroke(selected)
+  const canOffsetSel = canOffset(selected)
+  const maskable = canUseAsMask(selected, shapes)
+  const hasMask = hasMaskInSelection(selected)
+
+  const handleMakeCompound = async () => {
+    const id = await makeCompoundPath(doc, activePageId, selectedIds)
+    if (id) setSelectedIds(new Set([id]))
+  }
+  const handleReleaseCompound = async () => {
+    const ids = await releaseCompoundPath(doc, activePageId, selected[0].id)
+    if (ids.length > 0) setSelectedIds(new Set(ids))
+  }
+  const handleExpandStroke = async () => {
+    const ids = await expandStrokeOnSelection(doc, activePageId, selectedIds)
+    if (ids.length > 0) setSelectedIds(new Set(ids))
+  }
+  const handleOffsetPath = async () => {
+    const ids = await offsetSelectedPaths(doc, activePageId, selectedIds, 10)
+    if (ids.length > 0) setSelectedIds(new Set(ids))
+  }
+  const handleUseAsMask = () => {
+    const sel = makeMask(doc, activePageId, selectedIds)
+    if (sel) setSelectedIds(new Set([sel]))
+  }
+  const handleRemoveMask = () => removeMask(doc, activePageId, selectedIds)
+
   const copyAsPng = useCallback(async () => {
     const stage = stageRef.current
     if (!stage || selectedIds.size === 0) return
@@ -729,6 +762,21 @@ export function Canvas() {
           { label: 'Subtract', icon: MinusIcon, action: () => handleBooleanOp('subtract') },
           { label: 'Intersect', icon: SquaresIntersect, action: () => handleBooleanOp('intersect') },
           { label: 'Exclude', icon: Diff, action: () => handleBooleanOp('exclude') },
+        ] : []),
+        ...(canCompound || canRelease ? [
+          { divider: true } as const,
+          ...(canCompound ? [{ label: 'Make Compound Path', icon: Combine, shortcut: '⌘8', action: handleMakeCompound }] : []),
+          ...(canRelease ? [{ label: 'Release Compound Path', icon: Split, shortcut: '⌥⌘8', action: handleReleaseCompound }] : []),
+        ] : []),
+        ...(canExpand || canOffsetSel ? [
+          { divider: true } as const,
+          ...(canExpand ? [{ label: 'Expand Stroke', icon: Expand, shortcut: '⌘⇧E', action: handleExpandStroke }] : []),
+          ...(canOffsetSel ? [{ label: 'Offset Path', icon: Spline, action: handleOffsetPath }] : []),
+        ] : []),
+        ...(maskable || hasMask ? [
+          { divider: true } as const,
+          ...(maskable ? [{ label: 'Use as Mask', icon: Scissors, shortcut: '⌃⌘M', action: handleUseAsMask }] : []),
+          ...(hasMask ? [{ label: 'Remove Mask', icon: SquareDashed, action: handleRemoveMask }] : []),
         ] : []),
         ...(hasText ? [
           { divider: true } as const,

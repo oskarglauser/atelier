@@ -1,5 +1,5 @@
 import type Konva from 'konva'
-import type { Shape, TextShape, GradientFill } from '../types/document'
+import type { Shape, TextShape, PathShape, GradientFill } from '../types/document'
 import { getShapesBounds } from './math'
 import { hexToCmykString, hexToRgb, hexToCmyk } from './colorConvert'
 import { useCanvasStore } from '../store/canvasStore'
@@ -147,10 +147,28 @@ export async function shapesToSvgString(shapes: Shape[], scaleFactor = 1): Promi
   const globalColorMode = useCanvasStore.getState().colorMode
   const defs: string[] = []
   const elements: string[] = []
+  // Mask shapes don't paint; they open a clipPath around the siblings that
+  // follow them (until the parent changes or another mask starts). Relies on
+  // siblings being contiguous in document order, which they are.
+  let openMaskParent: string | null | false = false
   for (let si = 0; si < shapes.length; si++) {
     const shape = shapes[si]
     const x = shape.x - minX
     const y = shape.y - minY
+
+    if (shape.isMask && shape.visible !== false) {
+      if (openMaskParent !== false) elements.push('</g>')
+      const clipId = `mask-${si}`
+      defs.push(`<clipPath id="${clipId}">${maskGeometrySvg(shape, x, y)}</clipPath>`)
+      elements.push(`<g clip-path="url(#${clipId})">`)
+      openMaskParent = shape.parentId ?? null
+      continue
+    }
+    if (openMaskParent !== false && (shape.parentId ?? null) !== openMaskParent) {
+      elements.push('</g>')
+      openMaskParent = false
+    }
+
     const effectiveMode = shape.colorMode ?? globalColorMode
     const stroke = exportColor(shape.stroke, effectiveMode)
     const sw = shape.strokeWidth || 0
@@ -176,8 +194,9 @@ export async function shapesToSvgString(shapes: Shape[], scaleFactor = 1): Promi
         elements.push(`<ellipse cx="${x + shape.width / 2}" cy="${y + shape.height / 2}" rx="${shape.width / 2}" ry="${shape.height / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" />`)
         break
       case 'path': {
-        const pd = (shape as { pathData?: string }).pathData || ''
-        elements.push(`<path d="${pd}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" transform="translate(${x},${y})" />`)
+        const p = shape as PathShape
+        const fr = p.fillRule === 'evenodd' ? ' fill-rule="evenodd"' : ''
+        elements.push(`<path d="${p.pathData || ''}"${fr} fill="${fill}" stroke="${stroke}" stroke-width="${sw}" transform="translate(${x},${y})" />`)
         break
       }
       case 'text': {
@@ -200,8 +219,29 @@ export async function shapesToSvgString(shapes: Shape[], scaleFactor = 1): Promi
     }
   }
 
+  if (openMaskParent !== false) elements.push('</g>')
+
   const defsBlock = defs.length > 0 ? `\n  <defs>\n    ${defs.join('\n    ')}\n  </defs>` : ''
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w * scaleFactor}" height="${h * scaleFactor}" viewBox="0 0 ${w} ${h}">${defsBlock}\n  ${elements.join('\n  ')}\n</svg>`
+}
+
+/** Bare geometry element for a clipPath def (no paint attributes). */
+function maskGeometrySvg(shape: Shape, x: number, y: number): string {
+  switch (shape.type) {
+    case 'ellipse':
+      return `<ellipse cx="${x + shape.width / 2}" cy="${y + shape.height / 2}" rx="${shape.width / 2}" ry="${shape.height / 2}" />`
+    case 'path': {
+      const p = shape as PathShape
+      const rule = p.fillRule === 'evenodd' ? ' clip-rule="evenodd"' : ''
+      return `<path d="${p.pathData || ''}"${rule} transform="translate(${x},${y})" />`
+    }
+    case 'rectangle': {
+      const r = (shape as { cornerRadius?: number[] }).cornerRadius
+      return `<rect x="${x}" y="${y}" width="${shape.width}" height="${shape.height}" rx="${r ? r[0] : 0}" />`
+    }
+    default:
+      return `<rect x="${x}" y="${y}" width="${shape.width}" height="${shape.height}" />`
+  }
 }
 
 async function downloadSvg(shapes: Shape[], scale: ExportScale) {
@@ -246,6 +286,8 @@ async function downloadEps(shapes: Shape[], scale: ExportScale) {
   ]
 
   for (const shape of shapes) {
+    // Mask shapes don't paint (EPS clipping is a stretch goal; SVG has it)
+    if (shape.isMask && shape.visible !== false) continue
     const x = shape.x - minX
     const y = shape.y - minY
     const shapeMode = shape.colorMode ?? globalColorMode
@@ -327,11 +369,12 @@ async function downloadEps(shapes: Shape[], scale: ExportScale) {
         break
       }
       case 'path': {
-        const pd = (shape as { pathData?: string }).pathData || ''
-        const psPath = svgPathToPs(pd, x, y, h)
+        const p = shape as PathShape
+        const psPath = svgPathToPs(p.pathData || '', x, y, h)
         if (psPath) {
+          const fillOp = p.fillRule === 'evenodd' ? 'eofill' : 'fill'
           lines.push('newpath', psPath, 'closepath')
-          if (fill) { lines.push('gsave', fill, 'fill', 'grestore') }
+          if (fill) { lines.push('gsave', fill, fillOp, 'grestore') }
           if (stroke && strokeW > 0) { lines.push(`${strokeW} setlinewidth`, stroke, 'stroke') }
         }
         break

@@ -10,6 +10,7 @@ import { getGradientProps } from '../utils/gradientProps'
 import { drawGradientNoiseFill } from '../utils/gradientFill'
 import { rectHitFunc } from '../utils/shapeHelpers'
 import { armDragFromHandle } from '../utils/dragHandle'
+import { MaskedChildren } from '../MaskedChildren'
 
 interface Props {
   shape: FrameShapeType
@@ -153,7 +154,7 @@ export const FrameShapeComponent = memo(function FrameShapeComponent({ shape, on
         {bgElement}
         {childShapes && renderChild && (
           <Group x={-shape.x} y={-shape.y}>
-            {childShapes.map((child) => renderChild(child))}
+            <MaskedChildren childShapes={childShapes} renderChild={renderChild} />
           </Group>
         )}
         {showRulers && <FrameRulers shape={shape} />}

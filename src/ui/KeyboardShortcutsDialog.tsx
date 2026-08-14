@@ -54,6 +54,10 @@ const groups: ShortcutGroup[] = [
       { label: 'Lock or unlock', keys: ['Mod', 'Shift', 'L'] },
       { label: 'Hide or show', keys: ['Mod', 'Shift', 'H'] },
       { label: 'Outline text', keys: ['Mod', 'Shift', 'O'] },
+      { label: 'Make compound path', keys: ['Mod', '8'] },
+      { label: 'Release compound path', keys: ['Alt', 'Mod', '8'] },
+      { label: 'Expand stroke', keys: ['Mod', 'Shift', 'E'] },
+      { label: 'Use as mask', keys: ['Ctrl', 'Mod', 'M'] },
     ],
   },
   {

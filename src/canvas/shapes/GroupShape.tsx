@@ -2,6 +2,7 @@ import { Group, Rect } from 'react-konva'
 import type { GroupShape as GroupShapeType, Shape } from '../../types/document'
 import { useUIStore } from '../../store/uiStore'
 import { memo, type ReactNode } from 'react'
+import { MaskedChildren } from '../MaskedChildren'
 
 interface Props {
   shape: GroupShapeType
@@ -35,7 +36,7 @@ export const GroupShapeComponent = memo(function GroupShapeComponent({ shape, on
       />
       {childShapes && renderChild && (
         <Group x={-shape.x} y={-shape.y}>
-          {childShapes.map((child) => renderChild(child))}
+          <MaskedChildren childShapes={childShapes} renderChild={renderChild} />
         </Group>
       )}
     </Group>

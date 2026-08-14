@@ -32,6 +32,11 @@ export interface ShapeBase {
   stroke: string
   strokeWidth: number
   parentId: string | null
+  /**
+   * Inside a group or frame, a child with isMask clips the siblings above it
+   * (up to the next mask child). The mask shape itself does not paint.
+   */
+  isMask: boolean
 }
 
 export interface RectangleShape extends ShapeBase {
@@ -60,6 +65,8 @@ export interface PathShape extends ShapeBase {
   closed: boolean
   scaleX?: number
   scaleY?: number
+  /** Winding rule for fill and hit-testing; 'evenodd' renders subpath overlaps as holes */
+  fillRule?: 'nonzero' | 'evenodd'
 }
 
 export interface TextShape extends ShapeBase {
