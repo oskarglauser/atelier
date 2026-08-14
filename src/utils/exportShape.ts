@@ -4,7 +4,6 @@ import { getShapesBounds } from './math'
 import { hexToCmykString, hexToRgb, hexToCmyk } from './colorConvert'
 import { useCanvasStore } from '../store/canvasStore'
 import { textToOutlines } from '../operations/textToOutlines'
-import { downloadPdf } from './exportPdf'
 import { getGradientProps } from '../canvas/utils/gradientProps'
 
 export type ExportFormat = 'png' | 'svg' | 'jpg' | 'eps' | 'pdf'
@@ -56,6 +55,8 @@ export async function exportShapes(
   }
 
   if (format === 'pdf') {
+    // jsPDF is heavy and PDF export is rare — load on demand
+    const { downloadPdf } = await import('./exportPdf')
     await downloadPdf(exportShapesList, scale)
     return
   }

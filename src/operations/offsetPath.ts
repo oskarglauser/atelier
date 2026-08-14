@@ -6,6 +6,9 @@ import { getPaperScope, shapeToPaperPath, boundsNormalize } from './paperScope'
 
 type PathPayload = { pathData: string; x: number; y: number; width: number; height: number }
 
+/** Offset applied by the context-menu item; the panel field starts here too */
+export const DEFAULT_OFFSET_AMOUNT = 10
+
 const EXPANDABLE = new Set(['rectangle', 'ellipse', 'path', 'line'])
 const OFFSETTABLE = new Set(['rectangle', 'ellipse', 'path'])
 

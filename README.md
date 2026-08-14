@@ -24,10 +24,12 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
-## What's new in 0.11.0
+## What's new in 0.11.1
 
-- Balanced and pretty text wrapping: balance evens out line lengths, pretty keeps a lone word from sitting alone on the last line.
-- Small caps as a one-click text style.
+- Text boxes grow to fit their content when you finish typing.
+- Escape now keeps what you typed instead of discarding it, and cancelled empty text boxes clean themselves up.
+- Masked groups show a dashed outline on hover so clipped content is easier to understand.
+- The app loads noticeably faster: the editor and PDF export now load on demand.
 
 ## Getting started
 
@@ -78,7 +80,6 @@ Nothing else. No analytics, no tracking.
 - Importing SVG and PDF files, with better round-trip export
 - Reusable symbols, components, color styles, and typography styles
 - Project snapshots, version history, and backup files
-- Advanced vector editing such as offset paths, expanded strokes, masks, and compound paths
 - Shared brand libraries for colors, typography, logos, and other assets
 - Opening and saving selected Figma (`.fig`) and Illustrator (`.ai`) formats
 - Real-time collaboration

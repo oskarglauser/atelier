@@ -107,19 +107,28 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
   const finish = useCallback(() => {
     if (!editingTextId || finishingRef.current) return
     finishingRef.current = true
-    const text = editorRef.current?.textContent || ''
+    const el = editorRef.current
+    const text = el?.textContent || ''
     if (text.trim()) {
-      updateShape(doc, activePageId, editingTextId, {
-        text,
-        kerning: kerningRef.current,
-      } as Partial<TextShape>)
+      const updates: Partial<TextShape> = { text, kerning: kerningRef.current }
+      // Auto-fit height to content: the editor mirrors the shape's font
+      // metrics at screen scale, so its scrollHeight is the content height.
+      // Without this a new box stays one line tall and clips everything below.
+      if (el) {
+        const z = useViewportStore.getState().zoom
+        const contentHeight = el.scrollHeight / z
+        const minHeight = (shape?.fontSize ?? 16) * (shape?.lineHeight ?? 1.3)
+        const fitted = Math.max(contentHeight, minHeight)
+        if (Math.abs(fitted - (shape?.height ?? 0)) > 1) updates.height = fitted
+      }
+      updateShape(doc, activePageId, editingTextId, updates)
     } else {
       deleteShapes(doc, activePageId, new Set([editingTextId]))
       useUIStore.getState().clearSelection()
     }
     setEditingTextId(null)
     finishingRef.current = false
-  }, [editingTextId, doc, activePageId, setEditingTextId])
+  }, [editingTextId, doc, activePageId, setEditingTextId, shape])
 
   const handleInput = useCallback(() => {
     const el = editorRef.current
@@ -140,7 +149,9 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setEditingTextId(null)
+      // Commit, never discard — typed work must survive Escape, and the
+      // empty-commit branch cleans up a cancelled new text box.
+      finish()
       return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -182,7 +193,7 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
     }
 
     e.stopPropagation()
-  }, [finish, editingTextId, shape, doc, activePageId, setEditingTextId, applyKerningSpans])
+  }, [finish, editingTextId, shape, doc, activePageId, applyKerningSpans])
 
   if (!shape || !editingTextId) return null
 

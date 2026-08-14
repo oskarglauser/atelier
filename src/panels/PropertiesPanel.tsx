@@ -4,7 +4,7 @@ import { useDocument } from '../hooks/useDocument'
 import { updateShape, addShape } from '../document/operations'
 import type { Shape, TextShape, LineShape, LineCap, FrameShape, FrameRuler, ExportConfig, ImageShape, PathShape } from '../types/document'
 import { countSubpaths } from '../utils/pathData'
-import { offsetSelectedPaths, canOffset } from '../operations/offsetPath'
+import { offsetSelectedPaths, canOffset, DEFAULT_OFFSET_AMOUNT } from '../operations/offsetPath'
 import { isContainer } from '../document/hierarchy'
 import { useHistoryStore } from '../store/historyStore'
 import { useCallback, useMemo, useState } from 'react'
@@ -95,7 +95,7 @@ function OffsetSection({ doc, activePageId, selectedIds }: {
   activePageId: string
   selectedIds: Set<string>
 }) {
-  const [amount, setAmount] = useState(10)
+  const [amount, setAmount] = useState(DEFAULT_OFFSET_AMOUNT)
 
   const apply = async () => {
     if (!amount) return

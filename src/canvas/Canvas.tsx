@@ -13,7 +13,7 @@ import { snapWithRulers } from '../utils/snapToRulers'
 import { addShape, updateShape, reorderShape, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
 import { performBooleanOp } from '../operations/booleanOps'
 import { makeCompoundPath, releaseCompoundPath, canReleaseCompound } from '../operations/compoundPath'
-import { expandStrokeOnSelection, offsetSelectedPaths, canExpandStroke, canOffset } from '../operations/offsetPath'
+import { expandStrokeOnSelection, offsetSelectedPaths, canExpandStroke, canOffset, DEFAULT_OFFSET_AMOUNT } from '../operations/offsetPath'
 import { makeMask, removeMask, canUseAsMask, hasMaskInSelection } from '../operations/masks'
 import { outlineSelectedText } from '../operations/textToOutlines'
 import { alignSelectedObjects, distributeSelectedObjects } from '../operations/arrangeObjects'
@@ -95,6 +95,15 @@ export function Canvas() {
     if (stageRef.current) setStageRef(stageRef.current)
     return () => setStageRef(null)
   }, [])
+
+  // Undo/redo can delete shapes out from under the selection, leaving the
+  // context menu and panels acting on ids that no longer exist.
+  useEffect(() => {
+    if (selectedIds.size === 0) return
+    const ids = new Set(shapes.map((s) => s.id))
+    const pruned = [...selectedIds].filter((id) => ids.has(id))
+    if (pruned.length !== selectedIds.size) setSelectedIds(new Set(pruned))
+  }, [shapes, selectedIds, setSelectedIds])
 
   useEffect(() => {
     const container = containerRef.current
@@ -655,7 +664,7 @@ export function Canvas() {
     if (ids.length > 0) setSelectedIds(new Set(ids))
   }
   const handleOffsetPath = async () => {
-    const ids = await offsetSelectedPaths(doc, activePageId, selectedIds, 10)
+    const ids = await offsetSelectedPaths(doc, activePageId, selectedIds, DEFAULT_OFFSET_AMOUNT)
     if (ids.length > 0) setSelectedIds(new Set(ids))
   }
   const handleUseAsMask = () => {
@@ -771,7 +780,7 @@ export function Canvas() {
         ...(canExpand || canOffsetSel ? [
           { divider: true } as const,
           ...(canExpand ? [{ label: 'Expand Stroke', icon: Expand, shortcut: '⌘⇧E', action: handleExpandStroke }] : []),
-          ...(canOffsetSel ? [{ label: 'Offset Path', icon: Spline, action: handleOffsetPath }] : []),
+          ...(canOffsetSel ? [{ label: `Offset Path by ${DEFAULT_OFFSET_AMOUNT}`, icon: Spline, action: handleOffsetPath }] : []),
         ] : []),
         ...(maskable || hasMask ? [
           { divider: true } as const,
