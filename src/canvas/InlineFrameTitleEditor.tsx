@@ -29,10 +29,15 @@ function InlineFrameTitleEditorInner({ editingId }: { editingId: string }) {
     setEditingFrameTitleId(null)
   }, [doc, activePageId, editingId, shape, setEditingFrameTitleId])
 
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
+  // Focus from a callback ref rather than a mount effect. The editor renders
+  // null until `shape` resolves, so a [] effect can run while inputRef is still
+  // null and never fire again — leaving the editor open but untypeable. A
+  // callback ref fires exactly when the input attaches, whenever that happens.
+  const attachInput = useCallback((el: HTMLInputElement | null) => {
+    inputRef.current = el
+    if (el) {
+      el.focus()
+      el.select()
     }
   }, [])
 
@@ -57,7 +62,7 @@ function InlineFrameTitleEditorInner({ editingId }: { editingId: string }) {
 
   return (
     <input
-      ref={inputRef}
+      ref={attachInput}
       defaultValue={shape.name}
       onKeyDown={(e) => {
         e.stopPropagation()

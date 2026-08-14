@@ -19,6 +19,7 @@ import { resolveParentForBounds, isFullyContained } from '../document/hierarchy'
 import { simplifyPath, pointsToSvgPath, getPointsBounds } from '../utils/path'
 import { getShapesBounds, isNearPoint } from '../utils/math'
 import { shapesToSvgString } from '../utils/exportShape'
+import { hasDraggableAncestor } from './utils/dragHandle'
 import { ShapeRenderer } from './ShapeRenderer'
 import { SelectionOverlay } from './SelectionOverlay'
 import { DropTargetHighlight } from './DropTargetHighlight'
@@ -249,7 +250,16 @@ export function Canvas() {
     // remain available even when the pointer is over empty canvas.
     if (e.evt.button === 2) return
 
-    if (e.evt.button === 1 || (e.evt.button === 0 && e.evt.altKey) || (e.evt.button === 0 && spaceHeld)) {
+    // Alt+drag on a draggable shape is the duplicate gesture (see
+    // SelectionOverlay), so alt only pans when the pointer is over something that
+    // can't be alt-dragged anyway — empty canvas, or a locked shape. Middle-click
+    // and space+drag pan from anywhere, including over shapes.
+    const wantsPan =
+      e.evt.button === 1 ||
+      (e.evt.button === 0 && spaceHeld) ||
+      (e.evt.button === 0 && e.evt.altKey && !hasDraggableAncestor(e.target))
+
+    if (wantsPan) {
       setIsPanning(true)
       setPanStart({ x: e.evt.clientX, y: e.evt.clientY })
       return
