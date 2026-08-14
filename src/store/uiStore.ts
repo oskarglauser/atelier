@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ToolType } from '../types/tools'
+import type { Shape } from '../types/document'
 
 interface UIState {
   activeTool: ToolType
@@ -7,6 +8,12 @@ interface UIState {
   hoveredId: string | null
   /** Frame highlighted as the drop target during a canvas drag */
   dropTargetFrameId: string | null
+  /**
+   * Stand-ins for the copies an in-flight alt-drag will create, shown at the
+   * originals' positions so the duplicate is visible while dragging. Render
+   * only — never written to Yjs, and never part of hit-testing or selection.
+   */
+  altDragPreview: Shape[] | null
   editingTextId: string | null
   editingFrameTitleId: string | null
   isLeftPanelOpen: boolean
@@ -20,6 +27,7 @@ interface UIState {
   clearSelection: () => void
   setHoveredId: (id: string | null) => void
   setDropTargetFrameId: (id: string | null) => void
+  setAltDragPreview: (shapes: Shape[] | null) => void
   setEditingTextId: (id: string | null) => void
   setEditingFrameTitleId: (id: string | null) => void
   toggleLeftPanel: () => void
@@ -32,6 +40,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedIds: new Set(),
   hoveredId: null,
   dropTargetFrameId: null,
+  altDragPreview: null,
   editingTextId: null,
   editingFrameTitleId: null,
   isLeftPanelOpen: true,
@@ -55,6 +64,7 @@ export const useUIStore = create<UIState>((set) => ({
   // No-ops when unchanged — called at pointer-move frequency during drags
   setDropTargetFrameId: (id) =>
     set((s) => (s.dropTargetFrameId === id ? s : { dropTargetFrameId: id })),
+  setAltDragPreview: (shapes) => set({ altDragPreview: shapes }),
   setEditingTextId: (id) => set({ editingTextId: id }),
   setEditingFrameTitleId: (id) => set({ editingFrameTitleId: id }),
   toggleLeftPanel: () => set((s) => ({ isLeftPanelOpen: !s.isLeftPanelOpen })),

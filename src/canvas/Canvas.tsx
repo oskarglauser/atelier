@@ -51,13 +51,21 @@ export function Canvas() {
   const stageRef = useRef<Konva.Stage>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const shapes = useShapes()
+  const altDragPreview = useUIStore((s) => s.altDragPreview)
   const shapesMap = useMemo(() => new Map(shapes.map((s) => [s.id, s])), [shapes])
+  // Alt-drag copies join the tree for rendering only, so frames nest them and
+  // their z-order matches the real duplicate. They stay out of shapesMap, which
+  // backs selection, hit-testing, snapping and export.
+  const renderShapes = useMemo(
+    () => (altDragPreview ? [...shapes, ...altDragPreview] : shapes),
+    [shapes, altDragPreview]
+  )
   const rootShapes = useMemo(() => {
     const containerIds = new Set(
-      shapes.filter((s) => s.type === 'frame' || s.type === 'group').map((s) => s.id)
+      renderShapes.filter((s) => s.type === 'frame' || s.type === 'group').map((s) => s.id)
     )
-    return shapes.filter((s) => !s.parentId || !containerIds.has(s.parentId))
-  }, [shapes])
+    return renderShapes.filter((s) => !s.parentId || !containerIds.has(s.parentId))
+  }, [renderShapes])
   const { onWheel } = useViewport()
   const { zoom, offsetX, offsetY, setStageSize } = useViewportStore()
   const { activeTool, selectedIds, setSelectedIds, clearSelection, setActiveTool, setEditingTextId } = useUIStore()
@@ -776,7 +784,7 @@ export function Canvas() {
             />
           )}
           {rootShapes.map((shape) => (
-            <ShapeRenderer key={shape.id} shape={shape} onSelect={onSelect} allShapes={shapes} />
+            <ShapeRenderer key={shape.id} shape={shape} onSelect={onSelect} allShapes={renderShapes} />
           ))}
         </Layer>
         <Layer name="overlay-layer">
