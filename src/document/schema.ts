@@ -50,19 +50,32 @@ const typeDefaults: Record<ShapeType, Partial<Shape>> = {
   group: {},
 }
 
-let shapeCounters: Record<string, number> = {}
+export function typeLabel(type: ShapeType): string {
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
 
-export function resetShapeCounters() {
-  shapeCounters = {}
+/**
+ * Next free "Rectangle N" style name for a type, derived from the shapes that
+ * already exist. Previously a module-global counter, which meant every peer
+ * (and every browser tab) independently produced "Rectangle 1".
+ */
+export function nextShapeName(type: ShapeType, existing: { type: string; name?: string }[]): string {
+  const label = typeLabel(type)
+  const pattern = new RegExp(`^${label} (\\d+)$`)
+  let max = 0
+  for (const s of existing) {
+    if (s.type !== type) continue
+    const m = pattern.exec(s.name ?? '')
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return `${label} ${max + 1}`
 }
 
 export function createShapeData(type: ShapeType, overrides: Partial<Shape> = {}): Shape {
-  shapeCounters[type] = (shapeCounters[type] || 0) + 1
-  const typeName = type.charAt(0).toUpperCase() + type.slice(1)
   return {
     ...baseDefaults,
     ...typeDefaults[type],
-    name: `${typeName} ${shapeCounters[type]}`,
+    name: typeLabel(type),
     ...overrides,
     // id and type come after the spread so callers that pass a whole existing
     // shape as overrides (paste, duplicate) can never reuse an existing id

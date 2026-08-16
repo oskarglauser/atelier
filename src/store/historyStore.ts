@@ -19,6 +19,13 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
   setUndoManager: (um) => {
     const updateFlags = get().updateFlags
+    // Detach from the manager being replaced — otherwise every page switch
+    // leaks listeners and leaves a reference to a destroyed manager behind.
+    const previous = get().undoManager
+    if (previous) {
+      previous.off('stack-item-added', updateFlags)
+      previous.off('stack-item-popped', updateFlags)
+    }
     um.on('stack-item-added', updateFlags)
     um.on('stack-item-popped', updateFlags)
     set({ undoManager: um })

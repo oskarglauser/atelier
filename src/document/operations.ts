@@ -1,6 +1,6 @@
 import * as Y from 'yjs'
 import type { Shape, ShapeType } from '../types/document'
-import { createShapeData } from './schema'
+import { createShapeData, nextShapeName } from './schema'
 import { getShapesArray } from './createDoc'
 import {
   buildShapeIndex,
@@ -91,11 +91,15 @@ export function addShape(doc: Y.Doc, pageId: string, type: ShapeType, overrides:
   const shapes = getShapesArray(doc, pageId)
   const shape = createShapeData(type, overrides)
   doc.transact(() => {
+    const all = getAllShapes(doc, pageId)
     // New shapes land on top of their own sibling group unless the caller
     // pinned an explicit order.
     if (overrides.order === undefined) {
-      const all = getAllShapes(doc, pageId)
       shape.order = orderOnTopOf(siblingsOf(all, shape.parentId ?? null))
+    }
+    // Name from what's already in the document, so peers don't all emit "Rectangle 1"
+    if (overrides.name === undefined) {
+      shape.name = nextShapeName(type, all)
     }
     shapes.push([shapeToYMap(shape)])
   }, _origin)

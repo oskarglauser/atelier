@@ -5,12 +5,20 @@ export function createDoc(): Y.Doc {
   return new Y.Doc()
 }
 
+/**
+ * Fixed id for the auto-created first page. Deterministic on purpose: if two
+ * peers each open the same empty document offline they both create a page,
+ * and a shared id means their shapes land in the same `page:<id>:shapes`
+ * array instead of two rival "Page 1"s. getPages() drops the duplicate entry.
+ */
+const DEFAULT_PAGE_ID = 'page-default'
+
 export function ensureDefaultPage(doc: Y.Doc) {
   const pages = doc.getArray('pages')
   if (pages.length > 0) return
 
   doc.transact(() => {
-    const pageId = generateId()
+    const pageId = DEFAULT_PAGE_ID
     const page = new Y.Map()
     page.set('id', pageId)
     page.set('name', 'Page 1')
@@ -27,9 +35,15 @@ export function ensureDefaultPage(doc: Y.Doc) {
 export function getPages(doc: Y.Doc): Array<{ id: string; name: string }> {
   const pages = doc.getArray('pages')
   const result: Array<{ id: string; name: string }> = []
+  const seen = new Set<string>()
   for (let i = 0; i < pages.length; i++) {
     const page = pages.get(i) as Y.Map<string>
-    result.push({ id: page.get('id') as string, name: page.get('name') as string })
+    const id = page.get('id') as string
+    // Two peers creating the default page offline merge into two entries
+    // sharing one id — show it once.
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    result.push({ id, name: page.get('name') as string })
   }
   return result
 }
@@ -58,6 +72,11 @@ export function deletePage(doc: Y.Doc, pageId: string) {
         break
       }
     }
+    // Yjs has no API to drop a shared type, but leaving the shapes behind
+    // means they stay in the document — and in every sync payload — forever.
+    // Emptying it is the closest we can get.
+    const orphaned = doc.getArray(`page:${pageId}:shapes`)
+    if (orphaned.length > 0) orphaned.delete(0, orphaned.length)
   }, 'local')
 }
 

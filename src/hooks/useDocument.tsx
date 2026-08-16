@@ -67,6 +67,14 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
     return <div className="flex items-center justify-center h-screen bg-bg text-text-secondary">Loading...</div>
   }
 
+  // The active page can vanish under us (another peer deletes it, or a stale
+  // id survives a reload). Fall back to the first real page rather than
+  // silently creating an orphaned empty shapes array for a page that's gone.
+  if (pages.length > 0 && !pages.some((p) => p.id === activePageId)) {
+    setActivePageId(pages[0].id)
+    return <div className="flex items-center justify-center h-screen bg-bg text-text-secondary">Loading...</div>
+  }
+
   const shapesArray = getShapesArray(doc, activePageId)
 
   return (
