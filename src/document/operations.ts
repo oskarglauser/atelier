@@ -47,7 +47,46 @@ function orderJustAbove(all: Shape[], shape: Shape): number {
 /** Keys whose values are object arrays stored as JSON strings in Yjs */
 const OBJECT_ARRAY_KEYS = new Set(['rulers', 'exports'])
 
+/**
+ * A text shape's body is stored as Y.Text rather than a plain string, so two
+ * people editing different parts of the same text merge instead of one
+ * overwriting the other. Everything outside this module still sees a string.
+ */
+const TEXT_KEY = 'text'
+
+/**
+ * Rewrite `ytext` to `next` using the smallest edit that spans the changed
+ * region (common prefix/suffix trimmed). Characters nobody touched keep their
+ * CRDT identity, which is what lets concurrent edits merge.
+ */
+function applyTextDiff(ytext: Y.Text, next: string) {
+  const prev = ytext.toString()
+  if (prev === next) return
+
+  let start = 0
+  const shortest = Math.min(prev.length, next.length)
+  while (start < shortest && prev[start] === next[start]) start++
+
+  let endPrev = prev.length
+  let endNext = next.length
+  while (endPrev > start && endNext > start && prev[endPrev - 1] === next[endNext - 1]) {
+    endPrev--
+    endNext--
+  }
+
+  if (endPrev > start) ytext.delete(start, endPrev - start)
+  if (endNext > start) ytext.insert(start, next.slice(start, endNext))
+}
+
 function setYMapValue(map: Y.Map<unknown>, key: string, value: unknown) {
+  if (key === TEXT_KEY && typeof value === 'string') {
+    // A not-yet-integrated map has no value here, which is fine — it just
+    // means we create the Y.Text rather than diffing into an existing one.
+    const existing = map.doc ? map.get(key) : undefined
+    if (existing instanceof Y.Text) applyTextDiff(existing, value)
+    else map.set(key, new Y.Text(value))
+    return
+  }
   if (Array.isArray(value)) {
     if (OBJECT_ARRAY_KEYS.has(key)) {
       map.set(key, JSON.stringify(value))
@@ -72,7 +111,9 @@ function shapeToYMap(shape: Shape): Y.Map<unknown> {
 export function yMapToShape(map: Y.Map<unknown>): Shape {
   const obj: Record<string, unknown> = {}
   map.forEach((value, key) => {
-    if (value instanceof Y.Array) {
+    if (value instanceof Y.Text) {
+      obj[key] = value.toString()
+    } else if (value instanceof Y.Array) {
       obj[key] = value.toArray()
     } else if (OBJECT_ARRAY_KEYS.has(key) && typeof value === 'string') {
       try {
@@ -391,17 +432,21 @@ export function getAllShapes(doc: Y.Doc, pageId: string): Shape[] {
 }
 
 /**
- * Backfill `order` on documents created before z-order became a field, and
- * repair any shape missing one. Uses the existing array sequence so nothing
- * visibly moves. Not undoable — it's a migration, not an edit.
+ * Bring an existing document up to the current shape schema:
+ *  - backfill `order` from the array sequence, so nothing visibly moves
+ *  - upgrade plain-string text bodies to Y.Text so they merge per character
+ *
+ * Not undoable — it's a migration, not an edit.
  */
-export function ensureShapeOrder(doc: Y.Doc, pageIds: string[]) {
+export function migrateShapes(doc: Y.Doc, pageIds: string[]) {
   doc.transact(() => {
     for (const pageId of pageIds) {
       const shapesArr = getShapesArray(doc, pageId)
       for (let i = 0; i < shapesArr.length; i++) {
         const ym = shapesArr.get(i) as Y.Map<unknown>
         if (typeof ym.get('order') !== 'number') ym.set('order', i * ORDER_STEP)
+        const body = ym.get(TEXT_KEY)
+        if (typeof body === 'string') ym.set(TEXT_KEY, new Y.Text(body))
       }
     }
   }, 'migration')
