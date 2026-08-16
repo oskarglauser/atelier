@@ -32,6 +32,12 @@ export interface ShapeBase {
   stroke: string
   strokeWidth: number
   parentId: string | null
+  /**
+   * Z-order within the parent's sibling group — higher draws on top.
+   * Fractional so reordering is an in-place write instead of a Y.Array
+   * move (see src/document/ordering.ts).
+   */
+  order: number
 }
 
 export interface RectangleShape extends ShapeBase {

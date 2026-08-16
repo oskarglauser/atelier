@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, type ReactNode 
 import * as Y from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { createDoc, ensureDefaultPage, getPages, getShapesArray } from '../document/createDoc'
+import { ensureShapeOrder } from '../document/operations'
 import { createUndoManager } from '../document/undoManager'
 import { useHistoryStore } from '../store/historyStore'
 import { useProjectStore } from '../projects/projectStore'
@@ -32,6 +33,9 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
     persistence.once('synced', () => {
       ensureDefaultPage(newDoc)
       const docPages = getPages(newDoc)
+      // Documents written before z-order became a shape field have no `order`;
+      // backfill from the existing array sequence so nothing visibly moves.
+      ensureShapeOrder(newDoc, docPages.map((p) => p.id))
       setPages(docPages)
       if (docPages.length > 0 && !activePageId) {
         setActivePageId(docPages[0].id)

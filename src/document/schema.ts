@@ -17,6 +17,9 @@ const baseDefaults = {
   stroke: DEFAULT_STROKE,
   strokeWidth: DEFAULT_STROKE_WIDTH,
   parentId: null,
+  // Placeholder — addShape assigns the real value from the sibling group,
+  // since only the document knows what else is on the page.
+  order: 0,
 }
 
 const typeDefaults: Record<ShapeType, Partial<Shape>> = {

@@ -113,17 +113,6 @@ export function selectionRoots(shapes: Shape[], ids: Set<string>): Shape[] {
   )
 }
 
-/** Highest array index occupied by rootId or any of its descendants. */
-export function getSubtreeTopIndex(shapes: Shape[], rootId: string): number {
-  const index = buildShapeIndex(shapes)
-  let top = index.indexOf.get(rootId) ?? -1
-  for (const d of getDescendants(shapes, rootId)) {
-    const i = index.indexOf.get(d.id) ?? -1
-    if (i > top) top = i
-  }
-  return top
-}
-
 function pointInShape(p: Point, s: Shape): boolean {
   return p.x >= s.x && p.x <= s.x + s.width && p.y >= s.y && p.y <= s.y + s.height
 }

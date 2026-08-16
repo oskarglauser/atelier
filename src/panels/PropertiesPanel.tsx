@@ -650,7 +650,9 @@ export function PropertiesPanel() {
                         },
                       } as Partial<Shape>)
                     })
-                  })
+                    // Nested transactions inherit the OUTER origin, so this
+                    // must be 'local' or the whole batch is not undoable.
+                  }, 'local')
                 } else {
                   update('fillType', mode)
                 }

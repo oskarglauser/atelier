@@ -7,10 +7,42 @@ import {
   findDropFrame,
   getDescendants,
   getShapeCenter,
-  getSubtreeTopIndex,
   isContainer,
   selectionRoots,
 } from './hierarchy'
+import {
+  ORDER_STEP,
+  orderOnTopOf,
+  ordersBetween,
+  renormalizedOrders,
+  sortByOrder,
+} from './ordering'
+
+/** id → live Y.Map index for a page, for cheap in-transaction lookups. */
+function mapsById(shapesArr: Y.Array<Y.Map<unknown>>): Map<string, Y.Map<unknown>> {
+  const m = new Map<string, Y.Map<unknown>>()
+  for (let i = 0; i < shapesArr.length; i++) {
+    const ym = shapesArr.get(i) as Y.Map<unknown>
+    m.set(ym.get('id') as string, ym)
+  }
+  return m
+}
+
+/** Shapes sharing a parent, in z-order, optionally excluding some ids. */
+function siblingsOf(all: Shape[], parentId: string | null, exclude?: Set<string>): Shape[] {
+  return all.filter(
+    (s) => (s.parentId ?? null) === parentId && !(exclude?.has(s.id) ?? false)
+  )
+}
+
+/** An order placing a shape directly above `shape` within its sibling group. */
+function orderJustAbove(all: Shape[], shape: Shape): number {
+  const sibs = siblingsOf(all, shape.parentId ?? null)
+  const i = sibs.findIndex((s) => s.id === shape.id)
+  const above = i >= 0 && i + 1 < sibs.length ? sibs[i + 1].order : null
+  const slot = ordersBetween(shape.order ?? 0, above, 1)
+  return slot ? slot[0] : (shape.order ?? 0) + ORDER_STEP
+}
 
 /** Keys whose values are object arrays stored as JSON strings in Yjs */
 const OBJECT_ARRAY_KEYS = new Set(['rulers', 'exports'])
@@ -59,6 +91,12 @@ export function addShape(doc: Y.Doc, pageId: string, type: ShapeType, overrides:
   const shapes = getShapesArray(doc, pageId)
   const shape = createShapeData(type, overrides)
   doc.transact(() => {
+    // New shapes land on top of their own sibling group unless the caller
+    // pinned an explicit order.
+    if (overrides.order === undefined) {
+      const all = getAllShapes(doc, pageId)
+      shape.order = orderOnTopOf(siblingsOf(all, shape.parentId ?? null))
+    }
     shapes.push([shapeToYMap(shape)])
   }, _origin)
   return shape
@@ -112,23 +150,19 @@ export function deleteShapes(doc: Y.Doc, pageId: string, ids: Set<string>, _orig
   }, _origin)
 }
 
-export function reorderShape(doc: Y.Doc, pageId: string, id: string, newIndex: number, _origin = 'local') {
-  const shapes = getShapesArray(doc, pageId)
+/**
+ * Give `id` the z-position currently held by `anchorId`. Intended for cases
+ * where a shape replaces another (boolean-op result, text-to-outlines) or
+ * slots in where a group of shapes used to sit (frame adoption).
+ */
+export function takeShapeOrderOf(doc: Y.Doc, pageId: string, id: string, anchorId: string, _origin = 'local') {
+  const shapesArr = getShapesArray(doc, pageId)
   doc.transact(() => {
-    let oldIndex = -1
-    let shapeData: Shape | null = null
-    for (let i = 0; i < shapes.length; i++) {
-      const map = shapes.get(i) as Y.Map<unknown>
-      if (map.get('id') === id) {
-        oldIndex = i
-        shapeData = yMapToShape(map)
-        break
-      }
-    }
-    if (oldIndex === -1 || !shapeData) return
-    shapes.delete(oldIndex, 1)
-    const adjustedIndex = newIndex > oldIndex ? newIndex - 1 : newIndex
-    shapes.insert(Math.min(adjustedIndex, shapes.length), [shapeToYMap(shapeData)])
+    const byId = mapsById(shapesArr)
+    const anchor = byId.get(anchorId)
+    const target = byId.get(id)
+    if (!anchor || !target) return
+    target.set('order', anchor.get('order') as number)
   }, _origin)
 }
 
@@ -185,43 +219,53 @@ export function moveShapes(doc: Y.Doc, pageId: string, ids: string[], dest: Move
   if (newParentId && movedIds.has(newParentId)) return false
 
   doc.transact(() => {
-    // Pull the moved roots out (descending index), keeping clones in ascending
-    // original order so the inserted block preserves their relative z.
-    const rootIdSet = new Set(roots.map((r) => r.id))
-    const clones: Shape[] = []
-    for (let i = shapesArr.length - 1; i >= 0; i--) {
-      const map = shapesArr.get(i) as Y.Map<unknown>
-      if (rootIdSet.has(map.get('id') as string)) {
-        clones.unshift(yMapToShape(map))
-        shapesArr.delete(i, 1)
+    const shapesById = mapsById(shapesArr)
+    // Destination sibling group in z-order, excluding everything being moved.
+    let siblings = siblingsOf(getAllShapes(doc, pageId), newParentId, movedIds)
+
+    // The open interval the moved shapes must land in. A null end means
+    // "nothing beyond here", so we can just step away from the neighbour.
+    const bounds = (): [number | null, number | null] => {
+      const lowest = siblings.length ? siblings[0].order : null
+      const highest = siblings.length ? siblings[siblings.length - 1].order : null
+      switch (dest.kind) {
+        case 'root-bottom':
+          return [null, lowest]
+        case 'above-anchor': {
+          const i = siblings.findIndex((s) => s.id === dest.anchorId)
+          if (i === -1) return [highest, null]
+          return [siblings[i].order, i + 1 < siblings.length ? siblings[i + 1].order : null]
+        }
+        case 'below-anchor': {
+          const i = siblings.findIndex((s) => s.id === dest.anchorId)
+          if (i === -1) return [null, lowest]
+          return [i > 0 ? siblings[i - 1].order : null, siblings[i].order]
+        }
+        default: // 'inside' and 'root-top' both mean top of the group
+          return [highest, null]
       }
     }
 
-    // Compute the insertion index on the live post-delete array by anchor id —
-    // never from pre-delete numeric indexes.
-    const live = getAllShapes(doc, pageId)
-    let insertAt: number
-    switch (dest.kind) {
-      case 'inside':
-        insertAt = getSubtreeTopIndex(live, dest.containerId) + 1
-        break
-      case 'above-anchor':
-        insertAt = live.findIndex((s) => s.id === dest.anchorId) + 1
-        break
-      case 'below-anchor':
-        insertAt = live.findIndex((s) => s.id === dest.anchorId)
-        break
-      case 'root-top':
-        insertAt = live.length
-        break
-      case 'root-bottom':
-        insertAt = 0
-        break
+    let [below, above] = bounds()
+    let orders = ordersBetween(below, above, roots.length)
+    if (!orders) {
+      // Repeated midpoint inserts collapsed the gap — respace the whole
+      // destination group with fresh integer orders, then try again.
+      const fresh = renormalizedOrders(siblings)
+      for (const [sid, o] of fresh) shapesById.get(sid)?.set('order', o)
+      siblings = sortByOrder(siblings.map((s) => ({ ...s, order: fresh.get(s.id) ?? s.order })))
+      ;[below, above] = bounds()
+      orders = ordersBetween(below, above, roots.length)
     }
-    if (insertAt < 0) insertAt = live.length
+    if (!orders) return
 
-    const maps = clones.map((c) => shapeToYMap({ ...c, parentId: newParentId } as Shape))
-    shapesArr.insert(Math.min(insertAt, shapesArr.length), maps)
+    // `roots` came from a z-sorted snapshot, so this preserves their relative order.
+    roots.forEach((r, i) => {
+      const ym = shapesById.get(r.id)
+      if (!ym) return
+      ym.set('parentId', newParentId)
+      ym.set('order', orders![i])
+    })
   }, _origin)
   return true
 }
@@ -267,19 +311,18 @@ export function duplicateShapes(doc: Y.Doc, pageId: string, ids: Set<string>, of
   const shapesArr = getShapesArray(doc, pageId)
   const newRootIds: string[] = []
 
-  // Plan insertions from the initial snapshot; process in descending index
-  // order so earlier (higher) insertions don't shift later ones.
-  const jobs = roots
-    .map((root) => ({
-      root,
-      insertAt: getSubtreeTopIndex(all, root.id) + 1,
-      subtree: cloneSubtrees(all, [root.id], offset, offset)[0],
-    }))
-    .sort((a, b) => b.insertAt - a.insertAt)
+  const jobs = roots.map((root) => ({
+    root,
+    subtree: cloneSubtrees(all, [root.id], offset, offset)[0],
+  }))
 
   doc.transact(() => {
     for (const job of jobs) {
       const rootClone = job.subtree.clones.find((c) => c.id === job.subtree.rootCloneId)!
+      // The copy sits directly above its original. Descendant clones keep the
+      // source orders, which is correct — they form a fresh sibling group
+      // under the cloned root.
+      rootClone.order = orderJustAbove(all, job.root)
       // Keep the original parent unless the offset moved the duplicate's
       // center outside that frame — then re-resolve at the new position.
       if (rootClone.parentId) {
@@ -295,30 +338,69 @@ export function duplicateShapes(doc: Y.Doc, pageId: string, ids: Set<string>, of
         if (!stillInside) {
           const exclude = new Set([job.root.id, ...getDescendants(all, job.root.id).map((d) => d.id)])
           rootClone.parentId = findDropFrame(all, center, exclude)?.id ?? null
+          // Different sibling group now — "above the original" is meaningless.
+          rootClone.order = orderOnTopOf(siblingsOf(all, rootClone.parentId))
         }
       }
-      shapesArr.insert(Math.min(job.insertAt, shapesArr.length), job.subtree.clones.map(shapeToYMap))
+      // Array position is no longer z-order, so a plain append is fine.
+      shapesArr.push(job.subtree.clones.map(shapeToYMap))
       newRootIds.push(rootClone.id)
     }
   }, _origin)
   return newRootIds
 }
 
-/** Insert fully prepared shapes verbatim (ids preserved) at the top of the page. */
+/**
+ * Insert fully prepared shapes verbatim (ids preserved), placing each root on
+ * top of whichever sibling group it lands in. Shapes whose parent is also in
+ * the batch keep their relative orders — they form their own group.
+ */
 export function insertShapes(doc: Y.Doc, pageId: string, newShapes: Shape[], _origin = 'local') {
   const shapes = getShapesArray(doc, pageId)
   doc.transact(() => {
-    shapes.push(newShapes.map(shapeToYMap))
+    const all = getAllShapes(doc, pageId)
+    const incoming = new Set(newShapes.map((s) => s.id))
+    const topOf = new Map<string | null, number>()
+    const placed = newShapes.map((s) => {
+      const parentId = s.parentId ?? null
+      if (incoming.has(parentId ?? '')) return s
+      const next = (topOf.get(parentId) ?? orderOnTopOf(siblingsOf(all, parentId))) + ORDER_STEP
+      topOf.set(parentId, next)
+      return { ...s, order: next }
+    })
+    shapes.push(placed.map(shapeToYMap))
   }, _origin)
 }
 
+/**
+ * All shapes on a page **in z-order**. Sorting here (rather than relying on
+ * Y.Array position) is what lets every consumer keep treating array order as
+ * paint order while writes only ever touch the `order` key.
+ */
 export function getAllShapes(doc: Y.Doc, pageId: string): Shape[] {
   const shapes = getShapesArray(doc, pageId)
   const result: Shape[] = []
   for (let i = 0; i < shapes.length; i++) {
     result.push(yMapToShape(shapes.get(i) as Y.Map<unknown>))
   }
-  return result
+  return sortByOrder(result)
+}
+
+/**
+ * Backfill `order` on documents created before z-order became a field, and
+ * repair any shape missing one. Uses the existing array sequence so nothing
+ * visibly moves. Not undoable — it's a migration, not an edit.
+ */
+export function ensureShapeOrder(doc: Y.Doc, pageIds: string[]) {
+  doc.transact(() => {
+    for (const pageId of pageIds) {
+      const shapesArr = getShapesArray(doc, pageId)
+      for (let i = 0; i < shapesArr.length; i++) {
+        const ym = shapesArr.get(i) as Y.Map<unknown>
+        if (typeof ym.get('order') !== 'number') ym.set('order', i * ORDER_STEP)
+      }
+    }
+  }, 'migration')
 }
 
 // --- Group / Ungroup ---
@@ -348,16 +430,15 @@ export function groupShapes(doc: Y.Doc, pageId: string, ids: Set<string>, _origi
     stroke: '',
     strokeWidth: 0,
     parentId: sharedParentId,
+    // Sits just above its topmost member rather than at the page top. Members
+    // keep their orders — they now form the group's own sibling group.
+    order: orderJustAbove(allShapes, roots[roots.length - 1]),
   })
 
-  const index = buildShapeIndex(allShapes)
-  const topIdx = Math.max(...roots.map((r) => index.indexOf.get(r.id) ?? 0))
   const rootIds = new Set(roots.map((r) => r.id))
-
   const shapes = getShapesArray(doc, pageId)
   doc.transact(() => {
-    // Insert the group just above its topmost member (not at global top)
-    shapes.insert(Math.min(topIdx + 1, shapes.length), [shapeToYMap(group)])
+    shapes.push([shapeToYMap(group)])
     for (let i = 0; i < shapes.length; i++) {
       const map = shapes.get(i) as Y.Map<unknown>
       if (rootIds.has(map.get('id') as string)) {
@@ -398,32 +479,46 @@ export function ungroupShapes(doc: Y.Doc, pageId: string, groupIds: Set<string>,
 
 // --- Bring to front / Send to back ---
 
-export function bringToFront(doc: Y.Doc, pageId: string, ids: Set<string>, _origin = 'local') {
-  const shapes = getShapesArray(doc, pageId)
+/** Send every selected shape to the top (or bottom) of its own sibling group. */
+function moveToExtreme(doc: Y.Doc, pageId: string, ids: Set<string>, toFront: boolean, _origin: string) {
+  const shapesArr = getShapesArray(doc, pageId)
   doc.transact(() => {
-    const toMove: Shape[] = []
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const map = shapes.get(i) as Y.Map<unknown>
-      if (ids.has(map.get('id') as string)) {
-        toMove.push(yMapToShape(map))
-        shapes.delete(i, 1)
-      }
+    const all = getAllShapes(doc, pageId)
+    const selected = all.filter((s) => ids.has(s.id))
+    if (selected.length === 0) return
+    const byId = mapsById(shapesArr)
+
+    // Group by parent: a selected child rises within its container, not to
+    // the top of the page.
+    const groups = new Map<string | null, Shape[]>()
+    for (const s of selected) {
+      const p = s.parentId ?? null
+      const arr = groups.get(p)
+      if (arr) arr.push(s)
+      else groups.set(p, [s])
     }
-    toMove.reverse().forEach((s) => shapes.push([shapeToYMap(s)]))
+
+    for (const [parentId, members] of groups) {
+      const others = siblingsOf(all, parentId, new Set(members.map((m) => m.id)))
+      if (others.length === 0) continue
+      const orders = others.map((o) => o.order ?? 0)
+      const base = toFront ? Math.max(...orders) : Math.min(...orders)
+      // `members` is z-sorted, so relative order is preserved either way.
+      members.forEach((m, i) => {
+        const ym = byId.get(m.id)
+        if (!ym) return
+        ym.set('order', toFront
+          ? base + (i + 1) * ORDER_STEP
+          : base - (members.length - i) * ORDER_STEP)
+      })
+    }
   }, _origin)
 }
 
+export function bringToFront(doc: Y.Doc, pageId: string, ids: Set<string>, _origin = 'local') {
+  moveToExtreme(doc, pageId, ids, true, _origin)
+}
+
 export function sendToBack(doc: Y.Doc, pageId: string, ids: Set<string>, _origin = 'local') {
-  const shapes = getShapesArray(doc, pageId)
-  doc.transact(() => {
-    const toMove: Shape[] = []
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const map = shapes.get(i) as Y.Map<unknown>
-      if (ids.has(map.get('id') as string)) {
-        toMove.push(yMapToShape(map))
-        shapes.delete(i, 1)
-      }
-    }
-    toMove.forEach((s) => shapes.insert(0, [shapeToYMap(s)]))
-  }, _origin)
+  moveToExtreme(doc, pageId, ids, false, _origin)
 }

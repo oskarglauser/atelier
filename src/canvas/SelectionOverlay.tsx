@@ -5,7 +5,7 @@ import { useUIStore } from '../store/uiStore'
 import { useHistoryStore } from '../store/historyStore'
 import { useDocument } from '../hooks/useDocument'
 import { useShapes } from '../hooks/useShapes'
-import { updateShape, duplicateShapes, moveShapes } from '../document/operations'
+import { updateShape, duplicateShapes, moveShapes, getAllShapes } from '../document/operations'
 import { selectionRoots, getDescendants, getAncestors, getChildren, findDropFrame } from '../document/hierarchy'
 import type { Shape } from '../types/document'
 import { snapWithRulers } from '../utils/snapToRulers'
@@ -383,10 +383,19 @@ export function SelectionOverlay({ stageRef }: Props) {
         duplicateShapes(doc, activePageId, new Set(g.roots), 0)
       }
 
-      for (const [sid, start] of g.startPositions) {
+      // Commit the gesture as a DELTA against each shape's current stored
+      // position rather than against the dragstart snapshot. If a remote peer
+      // moved the same shape mid-drag, their move is preserved and our drag
+      // composes on top of it instead of overwriting it.
+      // Nothing is written to Yjs during the drag, so a stored position that
+      // differs from our snapshot means a peer moved it — start from theirs.
+      const liveById = new Map(getAllShapes(doc, activePageId).map((s) => [s.id, s]))
+      for (const sid of g.startPositions.keys()) {
+        const live = liveById.get(sid)
+        if (!live) continue // deleted by a peer mid-drag
         updateShape(doc, activePageId, sid, {
-          x: start.x + g.lastDelta.x,
-          y: start.y + g.lastDelta.y,
+          x: live.x + g.lastDelta.x,
+          y: live.y + g.lastDelta.y,
         })
       }
 

@@ -2,7 +2,7 @@ import opentype from 'opentype.js'
 import type { TextShape } from '../types/document'
 import { isTauri } from '../utils/isTauri'
 import type * as Y from 'yjs'
-import { addShape, deleteShapes, getAllShapes, reorderShape } from '../document/operations'
+import { addShape, deleteShapes, getAllShapes, takeShapeOrderOf } from '../document/operations'
 
 const fontCache = new Map<string, opentype.Font>()
 const pendingFonts = new Map<string, Promise<opentype.Font | null>>()
@@ -212,9 +212,8 @@ export async function outlineSelectedText(
         strokeWidth: source.strokeWidth,
         parentId: source.parentId ?? null,
       })
-      const live = getAllShapes(doc, pageId)
-      const sourceIndex = live.findIndex((shape) => shape.id === source.id)
-      if (sourceIndex >= 0) reorderShape(doc, pageId, outline.id, sourceIndex)
+      // The outline replaces its source text, so it inherits its z-position.
+      takeShapeOrderOf(doc, pageId, outline.id, source.id)
       outlineIds.push(outline.id)
     }
     deleteShapes(doc, pageId, sourceIds)

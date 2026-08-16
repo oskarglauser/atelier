@@ -10,7 +10,7 @@ import { useDocument } from '../hooks/useDocument'
 import { usePenStore } from '../store/penStore'
 import { useCanvasStore, snapValue } from '../store/canvasStore'
 import { snapWithRulers } from '../utils/snapToRulers'
-import { addShape, updateShape, reorderShape, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
+import { addShape, updateShape, takeShapeOrderOf, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
 import { performBooleanOp } from '../operations/booleanOps'
 import { outlineSelectedText } from '../operations/textToOutlines'
 import { alignSelectedObjects, distributeSelectedObjects } from '../operations/arrangeObjects'
@@ -516,14 +516,11 @@ export function Canvas() {
             doc.transact(() => {
               newShape = addShape(doc, activePageId, 'frame', { x, y, width, height, parentId: frameParentId })
               if (enclosed.length > 0) {
-                // Insert the frame below its adoptees so they render on top of it
-                const allCurrent = getAllShapes(doc, activePageId)
-                let lowestIndex = allCurrent.length
-                for (const s of enclosed) {
-                  const idx = allCurrent.findIndex((c) => c.id === s.id)
-                  if (idx >= 0 && idx < lowestIndex) lowestIndex = idx
-                }
-                reorderShape(doc, activePageId, newShape.id, lowestIndex)
+                // The frame takes the z-position of the lowest shape it
+                // swallows, so it appears where those shapes were. They become
+                // its children and leave the surrounding sibling group.
+                const lowest = enclosed.reduce((a, b) => (a.order <= b.order ? a : b))
+                takeShapeOrderOf(doc, activePageId, newShape.id, lowest.id)
                 for (const s of enclosed) {
                   updateShape(doc, activePageId, s.id, { parentId: newShape.id })
                 }
@@ -586,11 +583,9 @@ export function Canvas() {
   const handleBooleanOp = async (op: 'union' | 'subtract' | 'intersect' | 'exclude') => {
     const result = await performBooleanOp(selected, op)
     if (result) {
-      // Result takes the topmost input's parent and z position; one undo step
+      // Result takes the topmost input's parent and z position; one undo step.
+      // `selected` is z-sorted, so the last entry is the topmost input.
       const topmost = selected[selected.length - 1]
-      const allBefore = getAllShapes(doc, activePageId)
-      const topIdx = allBefore.findIndex((s) => s.id === topmost.id)
-      const removedBelow = allBefore.filter((s, i) => i < topIdx && selectedIds.has(s.id)).length
       let shape: Shape | null = null
       doc.transact(() => {
         deleteShapes(doc, activePageId, selectedIds)
@@ -601,8 +596,8 @@ export function Canvas() {
           stroke: selected[0].stroke,
           strokeWidth: selected[0].strokeWidth,
           parentId: topmost.parentId ?? null,
+          order: topmost.order,
         })
-        reorderShape(doc, activePageId, shape.id, Math.max(0, topIdx - removedBelow))
       }, 'local')
       if (shape) setSelectedIds(new Set([(shape as Shape).id]))
     }
