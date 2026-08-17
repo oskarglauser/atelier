@@ -26,6 +26,8 @@ import { hasDraggableAncestor } from './utils/dragHandle'
 import { ShapeRenderer } from './ShapeRenderer'
 import { SelectionOverlay } from './SelectionOverlay'
 import { DropTargetHighlight } from './DropTargetHighlight'
+import { RemotePresence } from './RemotePresence'
+import { usePresencePublisher } from '../collab/usePresence'
 import { SelectionBox } from './SelectionBox'
 import { Grid } from './Grid'
 import { InlineTextEditor } from './InlineTextEditor'
@@ -74,6 +76,7 @@ export function Canvas() {
   const { zoom, offsetX, offsetY, setStageSize } = useViewportStore()
   const { activeTool, selectedIds, setSelectedIds, clearSelection, setActiveTool, setEditingTextId } = useUIStore()
   const { doc, activePageId } = useDocument()
+  const publishCursor = usePresencePublisher()
   const penStore = usePenStore()
 
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
@@ -380,6 +383,11 @@ export function Canvas() {
   }, [activeTool, getPointerPos, clearSelection, doc, activePageId, setActiveTool, penStore, spaceHeld, finishPenPath, setEditingTextId, setSelectedIds, shapes, zoom])
 
   const handlePointerMove = useCallback((e: Konva.KonvaEventObject<PointerEvent>) => {
+    // Publish before any early return below — otherwise the cursor freezes for
+    // collaborators whenever this client is panning or mid pen/freehand stroke.
+    const cursorPos = getPointerPos()
+    if (cursorPos) publishCursor(cursorPos)
+
     if (isPanning && panStart) {
       const dx = e.evt.clientX - panStart.x
       const dy = e.evt.clientY - panStart.y
@@ -460,7 +468,7 @@ export function Canvas() {
         height: Math.abs(snappedPos.y - createStart.y),
       })
     }
-  }, [isPanning, panStart, selectionBox, isCreating, createStart, getPointerPos, activeTool, penStore, penDragStart, isDrawingFreehand, getContainerParent, setSelectedIds, shapes])
+  }, [isPanning, panStart, selectionBox, isCreating, createStart, getPointerPos, activeTool, penStore, penDragStart, isDrawingFreehand, getContainerParent, setSelectedIds, shapes, publishCursor])
 
   const handlePointerUp = useCallback(() => {
     if (isPanning) {
@@ -841,6 +849,7 @@ export function Canvas() {
         </Layer>
         <Layer name="overlay-layer">
           <DropTargetHighlight />
+          <RemotePresence />
           <SelectionOverlay stageRef={stageRef} />
           <SelectionBox box={!isCreating ? selectionBox : null} />
           {isCreating && selectionBox && activeTool === 'ellipse' && (

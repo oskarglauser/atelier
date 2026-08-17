@@ -5,7 +5,10 @@ import { createDoc, ensureDefaultPage, getPages, getShapesArray } from '../docum
 import { createUndoManager } from '../document/undoManager'
 import { runMigrations } from '../document/migrations'
 import { useHistoryStore } from '../store/historyStore'
+import { useIdentityStore } from '../store/identityStore'
 import { useProjectStore } from '../projects/projectStore'
+import { BroadcastChannelProvider } from '../collab/BroadcastChannelProvider'
+import type { Awareness } from 'y-protocols/awareness'
 import type { Page } from '../types/document'
 
 interface DocumentContextValue {
@@ -13,6 +16,8 @@ interface DocumentContextValue {
   pages: Page[]
   activePageId: string
   shapesArray: Y.Array<Y.Map<unknown>>
+  /** Presence for this document — null until the document has loaded */
+  awareness: Awareness | null
 }
 
 const DocumentContext = createContext<DocumentContextValue | null>(null)
@@ -20,6 +25,7 @@ const DocumentContext = createContext<DocumentContextValue | null>(null)
 export function DocumentProvider({ projectId, children }: { projectId: string; children: ReactNode }) {
   const [doc, setDoc] = useState<Y.Doc | null>(null)
   const [pages, setPages] = useState<Page[]>([])
+  const [awareness, setAwareness] = useState<Awareness | null>(null)
   const persistenceRef = useRef<IndexeddbPersistence | null>(null)
   const activePageId = useProjectStore((s) => s.activePageId)
   const setActivePageId = useProjectStore((s) => s.setActivePageId)
@@ -29,6 +35,16 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
     const newDoc = createDoc()
     const persistence = new IndexeddbPersistence(`atelier-project-${projectId}`, newDoc)
     persistenceRef.current = persistence
+
+    // Cross-tab sync and presence. Other transports (see the collaboration
+    // plan) attach here the same way — the document model doesn't care which.
+    const provider = new BroadcastChannelProvider(`atelier-project-${projectId}`, newDoc)
+    const identity = useIdentityStore.getState()
+    provider.awareness.setLocalStateField('user', {
+      id: identity.id,
+      name: identity.name,
+      color: identity.color,
+    })
 
     persistence.once('synced', () => {
       // Before anything reads the document: IndexedDB has replayed, so this is
@@ -40,6 +56,7 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       if (docPages.length > 0 && !activePageId) {
         setActivePageId(docPages[0].id)
       }
+      setAwareness(provider.awareness)
       setDoc(newDoc)
     })
 
@@ -50,8 +67,10 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
 
     return () => {
       newDoc.getArray('pages').unobserveDeep(updatePages)
+      provider.destroy()
       persistence.destroy()
       newDoc.destroy()
+      setAwareness(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
@@ -78,7 +97,7 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
   const shapesArray = getShapesArray(doc, activePageId)
 
   return (
-    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray }}>
+    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray, awareness }}>
       {children}
     </DocumentContext.Provider>
   )
