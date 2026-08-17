@@ -8,6 +8,8 @@ import { useHistoryStore } from '../store/historyStore'
 import { useIdentityStore } from '../store/identityStore'
 import { useProjectStore } from '../projects/projectStore'
 import { BroadcastChannelProvider } from '../collab/BroadcastChannelProvider'
+import { IrohProvider, type IrohStatus } from '../collab/IrohProvider'
+import { isTauri } from '../utils/isTauri'
 import type { Awareness } from 'y-protocols/awareness'
 import type { Page } from '../types/document'
 
@@ -24,6 +26,8 @@ interface DocumentContextValue {
    * network transport would use to name the room.
    */
   docId: string
+  /** Peer-to-peer transport status. Null in the browser, where it never runs. */
+  collabStatus: IrohStatus | null
 }
 
 const DocumentContext = createContext<DocumentContextValue | null>(null)
@@ -33,6 +37,8 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
   const [pages, setPages] = useState<Page[]>([])
   const [awareness, setAwareness] = useState<Awareness | null>(null)
   const [docId, setDocId] = useState<string>('')
+  const [collabStatus, setCollabStatus] = useState<IrohStatus | null>(null)
+  const irohRef = useRef<IrohProvider | null>(null)
   const persistenceRef = useRef<IndexeddbPersistence | null>(null)
   const activePageId = useProjectStore((s) => s.activePageId)
   const setActivePageId = useProjectStore((s) => s.setActivePageId)
@@ -58,7 +64,22 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       // the only point where the stored schema is known and still untouched.
       runMigrations(newDoc)
       ensureDefaultPage(newDoc)
-      setDocId(ensureDocId(newDoc))
+      const meta = useProjectStore.getState().projects.find((p) => p.id === projectId)
+      const resolvedDocId = ensureDocId(newDoc, meta?.joinDocId)
+      setDocId(resolvedDocId)
+
+      // Desktop only: peer-to-peer needs raw UDP for hole punching and mDNS
+      // for local discovery, neither of which a browser can do.
+      if (isTauri()) {
+        irohRef.current = new IrohProvider(
+          resolvedDocId,
+          newDoc,
+          provider.awareness,
+          meta?.joinPeers ?? [],
+          setCollabStatus
+        )
+      }
+
       const docPages = getPages(newDoc)
       setPages(docPages)
       if (docPages.length > 0 && !activePageId) {
@@ -75,6 +96,8 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
 
     return () => {
       newDoc.getArray('pages').unobserveDeep(updatePages)
+      void irohRef.current?.destroy()
+      irohRef.current = null
       provider.destroy()
       persistence.destroy()
       newDoc.destroy()
@@ -105,7 +128,7 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
   const shapesArray = getShapesArray(doc, activePageId)
 
   return (
-    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray, awareness, docId }}>
+    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray, awareness, docId, collabStatus }}>
       {children}
     </DocumentContext.Provider>
   )

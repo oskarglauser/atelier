@@ -43,12 +43,14 @@ export function ensureDefaultPage(doc: Y.Doc) {
  * Written under the 'migration' origin: it is document identity, not an edit,
  * and must not sit on the undo stack.
  */
-export function ensureDocId(doc: Y.Doc): string {
+export function ensureDocId(doc: Y.Doc, preferred?: string): string {
   const meta = doc.getMap('meta')
   const existing = meta.get('docId')
   if (typeof existing === 'string' && existing.length > 0) return existing
 
-  const docId = generateId()
+  // `preferred` comes from a share ticket: adopting the sender's id is what
+  // puts this replica in the same sync room as theirs.
+  const docId = preferred && preferred.length > 0 ? preferred : generateId()
   doc.transact(() => meta.set('docId', docId), 'migration')
   return docId
 }

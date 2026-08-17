@@ -46,9 +46,10 @@ Two hard rules follow from this:
 | `src/panels/` | TopBar, Toolbar, LayersPanel, PropertiesPanel, PageTabs, ZoomControls |
 | `src/operations/` | Boolean ops (Paper.js) and text-to-outlines (opentype.js) |
 | `src/projects/` | Project CRUD + IndexedDB persistence (`projectPersistence.ts`); project metadata in the `atelier` DB, document data in per-project DBs |
+| `src/collab/` | Peer-to-peer sync: the Yjs wire protocol (`yjsProtocol.ts`) and the two transports that carry it, `BroadcastChannelProvider` (tabs) and `IrohProvider` (desktop, network) |
 | `src/fonts/` | Font detection (Tauri native → Local Font Access API → canvas probing) and Google Fonts loading |
 | `src/utils/` | Export (SVG/PNG/PDF), color conversion incl. CMYK emulation |
-| `src-tauri/` | Tauri desktop shell: system font enumeration and font file reading (`src/lib.rs`), auto-updater config |
+| `src-tauri/` | Tauri desktop shell: system font enumeration and font file reading (`src/lib.rs`), the iroh transport (`src/collab.rs`), auto-updater config |
 | `landing/` | Static landing page |
 
 **Shape types** (Rectangle, Ellipse, Line, Path, Text, Image, Frame, Group) are defined in `src/types/document.ts`.
@@ -57,7 +58,35 @@ IDs are generated with `nanoid`.
 
 ### Desktop (Tauri) specifics
 
-The webview runs the same build as the browser app; `src/utils/isTauri.ts` gates desktop-only paths. The Rust side (`src-tauri/src/lib.rs`) exposes exactly two commands — `list_system_fonts` and `read_font_file` — plus the updater/process plugins. Keep the IPC surface minimal: new commands widen the attack surface of the app and need a clear justification. The webview CSP is configured in `src-tauri/tauri.conf.json`; if you add a feature that talks to a new origin, the CSP must be updated deliberately, not loosened wholesale.
+The webview runs the same build as the browser app; `src/utils/isTauri.ts` gates desktop-only paths. The Rust side (`src-tauri/src/lib.rs`) exposes five commands — `list_system_fonts`, `read_font_file`, and `collab_start` / `collab_send` / `collab_stop` — plus the updater/process plugins. Keep the IPC surface minimal: new commands widen the attack surface of the app and need a clear justification. The webview CSP is configured in `src-tauri/tauri.conf.json`; if you add a feature that talks to a new origin, the CSP must be updated deliberately, not loosened wholesale.
+
+### Collaboration
+
+One Yjs wire protocol, two transports. `src/collab/yjsProtocol.ts` owns the
+framing (a leading byte selecting sync or awareness, then a y-protocols
+payload); `BroadcastChannelProvider` carries it between tabs, `IrohProvider`
+carries it between machines. Add a transport by encoding and applying frames
+through that module — do not re-implement the protocol.
+
+The Rust side (`src-tauri/src/collab.rs`) is deliberately a **pure byte pipe**.
+It hashes the document id into a gossip topic, discovers peers over mDNS, and
+moves opaque frames between the webview and the network. It does not know what
+Yjs is and does not link `yrs`, so the protocol has exactly one implementation
+and only JavaScript can be wrong about it.
+
+Because gossip is best-effort — frames can drop, and a peer joining late has
+missed everything before it arrived — `IrohProvider` re-offers its state vector
+every 5 seconds. The Yjs exchange is idempotent, so that repair costs nothing
+when replicas already agree.
+
+Remote updates are applied with the provider object as the transaction origin.
+That is what keeps a peer's edits off your undo stack, and it is why the
+`UndoManager` tracks only the `'local'` origin. Any new transport must do the
+same.
+
+Note the trust model in `src/collab/ticket.ts`: a ticket is a bearer
+capability. Holding it is permission to edit, there is no revocation, and iroh
+authenticates *who* a peer is without saying what they may do.
 
 ## Releasing a new version
 

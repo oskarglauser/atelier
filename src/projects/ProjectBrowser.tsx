@@ -1,19 +1,39 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from './projectStore'
-import { Plus, Trash2, Settings } from 'lucide-react'
+import { Plus, Trash2, Settings, Users } from 'lucide-react'
 import { SettingsPanel } from './SettingsPanel'
 import { Dialog, DialogCancel, DialogAction } from '../ui/Dialog'
+import { isTauri } from '../utils/isTauri'
 
 export function ProjectBrowser() {
-  const { projects, loading, loadProjects, createProject, deleteProject, openProject } = useProjectStore()
+  const { projects, loading, loadProjects, createProject, joinProject, deleteProject, openProject } = useProjectStore()
   const [newName, setNewName] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [showJoin, setShowJoin] = useState(false)
+  const [ticketText, setTicketText] = useState('')
+  const [joinError, setJoinError] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
     loadProjects()
   }, [loadProjects])
+
+  const closeJoin = () => {
+    setShowJoin(false)
+    setTicketText('')
+    setJoinError('')
+  }
+
+  const handleJoin = async () => {
+    const meta = await joinProject(ticketText)
+    if (!meta) {
+      setJoinError('That does not look like a valid invite code.')
+      return
+    }
+    closeJoin()
+    openProject(meta.id)
+  }
 
   const handleCreate = async () => {
     const name = newName.trim() || 'Untitled'
@@ -58,6 +78,16 @@ export function ProjectBrowser() {
           >
             <Settings size={16} strokeWidth={1.5} />
           </button>
+          {isTauri() && (
+            <button
+              onClick={() => setShowJoin(true)}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
+              title="Open a document someone shared with you"
+            >
+              <Users size={14} strokeWidth={1.7} />
+              Join
+            </button>
+          )}
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-text text-bg rounded-lg text-[13px] font-semibold hover:opacity-90 transition-opacity shadow-sm"
@@ -138,6 +168,33 @@ export function ProjectBrowser() {
         <span aria-hidden>·</span>
         <span>v{__APP_VERSION__}</span>
       </footer>
+
+      {/* Join Shared Document Dialog */}
+      <Dialog
+        open={showJoin}
+        onClose={closeJoin}
+        title="Join a shared document"
+        footer={
+          <>
+            <DialogCancel onClick={closeJoin} />
+            <DialogAction onClick={handleJoin}>Join</DialogAction>
+          </>
+        }
+      >
+        <p className="mb-3 text-[12px] text-text-dim">
+          Paste the invite code from the person sharing. You need to be on the same
+          network as them.
+        </p>
+        <input
+          autoFocus
+          value={ticketText}
+          onChange={(e) => { setTicketText(e.target.value); setJoinError('') }}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleJoin() }}
+          placeholder="Invite code..."
+          className="w-full rounded-lg border border-border bg-bg-tertiary px-4 py-2.5 font-mono text-[12px] text-text outline-none transition-colors focus:border-accent"
+        />
+        {joinError && <p className="mt-2 text-[12px] text-danger">{joinError}</p>}
+      </Dialog>
 
       {/* Create Project Dialog */}
       <Dialog

@@ -5,6 +5,7 @@ import { getStageRef } from '../store/stageRef'
 import { captureThumbnail } from '../canvas/captureThumbnail'
 import { useUIStore } from '../store/uiStore'
 import { KeyboardShortcutsDialog } from '../ui/KeyboardShortcutsDialog'
+import { CollabShare } from '../collab/CollabShare'
 import { Undo2, Redo2, ChevronLeft, ChevronDown, Plus, Keyboard, Settings } from 'lucide-react'
 
 export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -162,6 +163,7 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           <Settings size={14} strokeWidth={1.5} />
         </button>
+        <CollabShare />
         <button
           onClick={() => setShortcutHelpOpen(true)}
           className="mr-1 flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"

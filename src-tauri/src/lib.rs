@@ -3,6 +3,8 @@ use font_kit::properties::Properties;
 use font_kit::source::SystemSource;
 use serde::Serialize;
 
+mod collab;
+
 #[derive(Serialize)]
 struct FontInfo {
     family: String,
@@ -68,7 +70,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![list_system_fonts, read_font_file])
+        .manage(collab::CollabState::default())
+        .invoke_handler(tauri::generate_handler![
+            list_system_fonts,
+            read_font_file,
+            collab::collab_start,
+            collab::collab_send,
+            collab::collab_stop
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

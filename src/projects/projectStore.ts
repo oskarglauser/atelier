@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ProjectMeta } from '../types/document'
 import { listProjects, saveProject, deleteProject as deleteProjectFromDB } from './projectPersistence'
 import { generateId } from '../utils/id'
+import { decodeTicket } from '../collab/ticket'
 
 interface ProjectStore {
   projects: ProjectMeta[]
@@ -11,6 +12,7 @@ interface ProjectStore {
 
   loadProjects: () => Promise<void>
   createProject: (name: string) => Promise<ProjectMeta>
+  joinProject: (ticketText: string) => Promise<ProjectMeta | null>
   deleteProject: (id: string) => Promise<void>
   openProject: (id: string, pageId?: string) => void
   setActivePageId: (pageId: string) => void
@@ -40,6 +42,31 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       teamId: null,
       createdBy: null,
       thumbnail: null,
+    }
+    await saveProject(meta)
+    set((s) => ({ projects: [meta, ...s.projects] }))
+    return meta
+  },
+
+  joinProject: async (ticketText: string) => {
+    const ticket = decodeTicket(ticketText)
+    if (!ticket) return null
+    // Already joined this document — reopen rather than making a second copy
+    const existing = get().projects.find((p) => p.joinDocId === ticket.docId)
+    if (existing) return existing
+
+    const now = Date.now()
+    const meta: ProjectMeta = {
+      id: generateId(),
+      // Renamed once the document syncs, if it carries a name
+      name: 'Shared project',
+      createdAt: now,
+      updatedAt: now,
+      teamId: null,
+      createdBy: null,
+      thumbnail: null,
+      joinDocId: ticket.docId,
+      joinPeers: ticket.peers,
     }
     await saveProject(meta)
     set((s) => ({ projects: [meta, ...s.projects] }))

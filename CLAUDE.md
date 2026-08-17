@@ -38,6 +38,8 @@ Atelier is a browser-based vector design tool (similar to Figma) built as a clie
 
 **Projects** (`src/projects/`): Project CRUD with IndexedDB persistence in `projectPersistence.ts`. Project metadata stored in `atelier` DB; document data in per-project DBs.
 
+**Collaboration** (`src/collab/`): One wire protocol, two transports. `yjsProtocol.ts` owns framing and is the only place the protocol is implemented — `BroadcastChannelProvider` (between tabs, all builds) and `IrohProvider` (between machines, desktop only) both go through it. `src-tauri/src/collab.rs` is a pure byte pipe that never parses Yjs. Remote updates must be applied with the provider object as transaction origin, which is what keeps them off the undo stack (`UndoManager` tracks only `'local'`).
+
 ## Key Patterns
 
 - All shape data mutations must go through Yjs transactions (via `doc.transact()`) to preserve undo/redo and future collaboration support.

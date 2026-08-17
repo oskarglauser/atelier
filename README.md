@@ -19,10 +19,28 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Gradients and fills:** Create linear gradients and add an optional noise texture.
 - **Export:** Save work as SVG, PNG, JPG, EPS, or PDF. You can also copy artwork as PNG, SVG, or code.
 - **Local storage:** Projects are stored in IndexedDB using [Yjs](https://yjs.dev). Atelier has no backend, telemetry, or account system.
+- **Collaboration without a server:** In the desktop app, share a document with anyone on your network and edit it together, seeing each other's cursors and selections live. It is direct peer-to-peer — no cloud, no account, and it works with your internet unplugged.
 - **Multi-page projects:** Work across multiple pages with undo and redo history.
 - **Keyboard workflow:** Use familiar design-tool shortcuts and open the built-in shortcut guide at any time.
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
+
+## What's new in 0.13.0
+
+- **Work together on the same document, with no server in between.** In the
+  desktop app, open a project and click **Share** to get an invite code. Anyone
+  on the same network who pastes it into **Join** opens the same document and
+  edits it with you, live. Their cursor, their selection, and their changes
+  appear as they work.
+- Connections are direct between the two machines. Nothing is uploaded, no
+  account is involved, and it keeps working if the network has no internet
+  access at all.
+- In the browser, two tabs or windows of the same project now stay in sync with
+  each other.
+
+Collaboration is a desktop-only feature: it needs network access a browser tab
+is not allowed to have. See [Sharing a document](#sharing-a-document) for what
+an invite code grants.
 
 ## What's new in 0.12.0
 
@@ -80,6 +98,30 @@ Atelier's automatic-update files are cryptographically signed, but that signatur
 
 Atelier does not use cloud storage. Project metadata and document data are saved to IndexedDB in your browser or desktop app, with a separate database for each project. Use the export tools to save artwork outside Atelier.
 
+## Sharing a document
+
+In the desktop app, **Share** in the top bar produces an invite code for the
+open document. Paste it into **Join** on another machine and both of you are
+editing the same document.
+
+How it works: each machine has a cryptographic identity, finds the other over
+mDNS on the local network, and opens an encrypted QUIC connection directly to
+it using [iroh](https://iroh.computer). Edits are [Yjs](https://yjs.dev) updates
+sent over that connection. There is no server anywhere in the path, which is why
+it works with the internet disconnected — the two machines only need to be able
+to reach each other.
+
+Two things worth knowing before you share:
+
+- **The invite code is the permission.** Anyone holding it can open and edit the
+  document. Treat it like a password.
+- **There is no revoking it.** Sharing it once shares it for good. If a code
+  gets out, the only remedy is to duplicate the project, which gives you a
+  document with a new identity and a new code.
+
+Peers must be on the same local network. Collaborating across the internet is
+not supported yet.
+
 ## Privacy
 
 Atelier connects to two external services:
@@ -89,6 +131,10 @@ Atelier connects to two external services:
 
 Nothing else. No analytics, no tracking.
 
+Collaboration adds no third service. When you share a document, the desktop app
+talks directly to the machines you shared it with, over your own network. Your
+document is never sent anywhere else.
+
 ## Roadmap
 
 - Importing SVG and PDF files, with better round-trip export
@@ -96,13 +142,13 @@ Nothing else. No analytics, no tracking.
 - Project snapshots, version history, and backup files
 - Shared brand libraries for colors, typography, logos, and other assets
 - Opening and saving selected Figma (`.fig`) and Illustrator (`.ai`) formats
-- Real-time collaboration
+- Collaborating with people outside your local network
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for an overview of the architecture and the contribution process.
 
 ## Tech stack
 
-React 19 · TypeScript · Vite · Tailwind CSS 4 · Konva.js (canvas rendering) · Yjs (document model / undo / persistence) · Zustand (UI state) · Paper.js (boolean ops) · opentype.js + woff-lib (text to outlines) · Tauri 2 (desktop shell)
+React 19 · TypeScript · Vite · Tailwind CSS 4 · Konva.js (canvas rendering) · Yjs (document model / undo / persistence) · Zustand (UI state) · Paper.js (boolean ops) · opentype.js + woff-lib (text to outlines) · Tauri 2 (desktop shell) · iroh (peer-to-peer collaboration)
 
 ## License
 

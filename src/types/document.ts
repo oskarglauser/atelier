@@ -143,4 +143,11 @@ export interface ProjectMeta {
   teamId: string | null
   createdBy: string | null
   thumbnail: string | null
+  /**
+   * For a project joined from a share ticket: the document id to adopt, and
+   * the peers to dial. The local `id` above is per-machine, so these are what
+   * tie this copy to everyone else's.
+   */
+  joinDocId?: string
+  joinPeers?: string[]
 }
