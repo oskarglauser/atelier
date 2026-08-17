@@ -24,6 +24,20 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
+## What's new in 0.12.0
+
+- Layer order is now stored on each shape rather than inferred from document
+  position, so reordering never disturbs anything else on the page.
+- Text is stored so that separate edits to the same text box combine instead of
+  one replacing the other.
+- Switching a fill from solid to gradient can now be undone — previously that
+  change was skipped by undo.
+- New shapes keep counting up after a reload instead of restarting at "1".
+- Deleting a page now reclaims its contents, keeping project files smaller.
+
+Projects saved with 0.12.0 are upgraded automatically on first open. They are
+not readable by 0.11.x, so keep a copy if you need to go back.
+
 ## What's new in 0.11.1
 
 - Text boxes grow to fit their content when you finish typing.
