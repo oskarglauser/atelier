@@ -78,15 +78,47 @@ function applyTextDiff(ytext: Y.Text, next: string) {
   if (endNext > start) ytext.insert(start, next.slice(start, endNext))
 }
 
+/**
+ * Whether the map already holds this value, decoded the way `yMapToStored`
+ * decodes it.
+ *
+ * Yjs records a change for every `set`, even one that stores an identical
+ * value, and an array is always a *new* `Y.Array` so it can never compare
+ * equal by identity. Writing unchanged fields therefore costs a real update:
+ * an undo entry that reverts nothing visible, a message to every peer, and a
+ * re-render. Callers pass whole objects — `updateShape(id, {text, kerning,
+ * height})` — so unchanged fields ride along constantly, which only became
+ * obvious once text started publishing while you type.
+ */
+function alreadyEqual(map: Y.Map<unknown>, key: string, value: unknown): boolean {
+  if (!map.doc) return false // prelim map: reading warns, and nothing is set yet
+  const current = map.get(key)
+
+  if (Array.isArray(value)) {
+    if (OBJECT_ARRAY_KEYS.has(key)) {
+      return typeof current === 'string' && current === JSON.stringify(value)
+    }
+    if (!(current instanceof Y.Array) || current.length !== value.length) return false
+    const stored = current.toArray()
+    return stored.every((item, i) => item === value[i])
+  }
+
+  // Objects are compared by identity, which is never true for a fresh literal,
+  // so they fall through and are written — correct, just not skippable.
+  return current === value
+}
+
 function setYMapValue(map: Y.Map<unknown>, key: string, value: unknown) {
   if (key === TEXT_KEY && typeof value === 'string') {
     // A not-yet-integrated map has no value here, which is fine — it just
     // means we create the Y.Text rather than diffing into an existing one.
+    // applyTextDiff already returns early when the text is unchanged.
     const existing = map.doc ? map.get(key) : undefined
     if (existing instanceof Y.Text) applyTextDiff(existing, value)
     else map.set(key, new Y.Text(value))
     return
   }
+  if (alreadyEqual(map, key, value)) return
   if (Array.isArray(value)) {
     if (OBJECT_ARRAY_KEYS.has(key)) {
       map.set(key, JSON.stringify(value))

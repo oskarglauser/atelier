@@ -12,6 +12,15 @@ interface Props {
   stageRef: React.RefObject<Konva.Stage | null>
 }
 
+/**
+ * How often typing is published to the document.
+ *
+ * Under the undo manager's 300ms `captureTimeout`, so consecutive publishes
+ * merge and a continuous burst of typing still collapses to one undo step
+ * rather than one per interval.
+ */
+const LIVE_SYNC_MS = 250
+
 function getCursorOffset(el: HTMLElement): number {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return 0
@@ -103,23 +112,44 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape?.id, applyKerningSpans])
 
+  /**
+   * Height that fits the current content, or undefined if the shape already
+   * fits. The editor mirrors the shape's font metrics at screen scale, so its
+   * scrollHeight is the content height. Without this a new box stays one line
+   * tall and clips everything below.
+   */
+  const fittedHeight = useCallback((el: HTMLElement): number | undefined => {
+    const z = useViewportStore.getState().zoom
+    const contentHeight = el.scrollHeight / z
+    const minHeight = (shape?.fontSize ?? 16) * (shape?.lineHeight ?? 1.3)
+    const fitted = Math.max(contentHeight, minHeight)
+    return Math.abs(fitted - (shape?.height ?? 0)) > 1 ? fitted : undefined
+  }, [shape?.fontSize, shape?.lineHeight, shape?.height])
+
+  const liveTimerRef = useRef<number | null>(null)
+  const cancelPendingSync = useCallback(() => {
+    if (liveTimerRef.current !== null) {
+      window.clearTimeout(liveTimerRef.current)
+      liveTimerRef.current = null
+    }
+  }, [])
+
+  // Nothing pending should outlive the editor: a flush after the box closed
+  // would write to a shape that may since have been committed or deleted.
+  useEffect(() => cancelPendingSync, [editingTextId, cancelPendingSync])
+
   const finishingRef = useRef(false)
   const finish = useCallback(() => {
     if (!editingTextId || finishingRef.current) return
     finishingRef.current = true
+    cancelPendingSync()
     const el = editorRef.current
     const text = el?.textContent || ''
     if (text.trim()) {
       const updates: Partial<TextShape> = { text, kerning: kerningRef.current }
-      // Auto-fit height to content: the editor mirrors the shape's font
-      // metrics at screen scale, so its scrollHeight is the content height.
-      // Without this a new box stays one line tall and clips everything below.
       if (el) {
-        const z = useViewportStore.getState().zoom
-        const contentHeight = el.scrollHeight / z
-        const minHeight = (shape?.fontSize ?? 16) * (shape?.lineHeight ?? 1.3)
-        const fitted = Math.max(contentHeight, minHeight)
-        if (Math.abs(fitted - (shape?.height ?? 0)) > 1) updates.height = fitted
+        const height = fittedHeight(el)
+        if (height !== undefined) updates.height = height
       }
       updateShape(doc, activePageId, editingTextId, updates)
     } else {
@@ -128,7 +158,7 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
     }
     setEditingTextId(null)
     finishingRef.current = false
-  }, [editingTextId, doc, activePageId, setEditingTextId, shape])
+  }, [editingTextId, doc, activePageId, setEditingTextId, fittedHeight, cancelPendingSync])
 
   const handleInput = useCallback(() => {
     const el = editorRef.current
@@ -145,7 +175,33 @@ export function InlineTextEditor({ stageRef: _stageRef }: Props) {
       applyKerningSpans(el, text, newKerning, shape?.letterSpacing || 0)
       requestAnimationFrame(() => setCursorOffset(el, cursorPos))
     }
-  }, [applyKerningSpans, shape?.letterSpacing])
+
+    // Publish as you type, so anyone else in the document watches the text
+    // appear instead of waiting for the box to be deselected. The first
+    // keystroke schedules the write and the rest ride the same timer, so this
+    // costs one transaction per interval rather than one per character.
+    //
+    // Writing here is safe against the editor fighting itself: the setup effect
+    // keys on the shape *id*, so a document change does not reload the
+    // contenteditable or move the caret, and this shape renders at opacity 0
+    // beneath the editor while it is open.
+    if (liveTimerRef.current === null) {
+      liveTimerRef.current = window.setTimeout(() => {
+        liveTimerRef.current = null
+        const current = editorRef.current
+        if (!current || !editingTextId) return
+        const updates: Partial<TextShape> = {
+          text: valueRef.current,
+          kerning: kerningRef.current,
+        }
+        // Grow the box as it fills, or peers would see the text clipped to the
+        // old height until the edit is committed.
+        const height = fittedHeight(current)
+        if (height !== undefined) updates.height = height
+        updateShape(doc, activePageId, editingTextId, updates)
+      }, LIVE_SYNC_MS)
+    }
+  }, [applyKerningSpans, shape?.letterSpacing, editingTextId, doc, activePageId, fittedHeight])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
