@@ -35,6 +35,36 @@ jobs:
         with:
           persist-credentials: false
 
+      # `tauri build` refuses to run when the Rust crate and the JS API differ
+      # in major.minor, and it only finds out at release time. Adding a JS
+      # plugin can pull @tauri-apps/api forward on its own, so check the pair
+      # here rather than discovering it in a tag build.
+      - name: Check Tauri crate and JS API versions agree
+        run: |
+          python3 - <<'PY'
+          import json, re, sys
+
+          lock = open('src-tauri/Cargo.lock').read()
+          crate = re.search(r'name = "tauri"\nversion = "([^"]+)"', lock)
+          if not crate:
+              sys.exit('could not find the tauri crate in src-tauri/Cargo.lock')
+
+          packages = json.load(open('package-lock.json'))['packages']
+          entry = packages.get('node_modules/@tauri-apps/api')
+          if not entry:
+              sys.exit('could not find @tauri-apps/api in package-lock.json')
+
+          crate_v, js_v = crate.group(1), entry['version']
+          minor = lambda v: '.'.join(v.split('.')[:2])
+          print(f'tauri crate {crate_v} / @tauri-apps/api {js_v}')
+          if minor(crate_v) != minor(js_v):
+              sys.exit(
+                  f'Tauri version mismatch: crate {crate_v} vs JS API {js_v}.\n'
+                  'Align them, e.g. cargo update -p tauri --precise <version> '
+                  'from src-tauri/.'
+              )
+          PY
+
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
