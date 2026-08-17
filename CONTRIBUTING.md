@@ -86,7 +86,23 @@ same.
 
 Note the trust model in `src/collab/ticket.ts`: a ticket is a bearer
 capability. Holding it is permission to edit, there is no revocation, and iroh
-authenticates *who* a peer is without saying what they may do.
+authenticates *who* a peer is without saying what they may do. That is also why
+the shareable link keeps the ticket in the URL fragment — browsers do not send
+a fragment to the server, so a link pasted into a chat does not leak the
+capability to the web host.
+
+Tickets are packed binary (version byte, length-prefixed document id, then raw
+32-byte endpoint keys) rather than JSON, because they are pasted by hand: the
+same ticket runs ~62 characters instead of ~135. `decodeTicket` accepts a bare
+code, an `atelier://join/<code>` deep link or an `https://…/#/join/<code>` web
+link, so any of them can be pasted into **Join**.
+
+A join link reaches the app through `src/collab/useJoinLinks.ts`, which is
+desktop-only on purpose: there is no transport in the browser, so joining there
+would produce a project that looks joined and silently never syncs. The browser
+renders `JoinLanding` instead. Deep links need a scheme registration that only
+an installed bundle has on macOS, so they cannot be tested with `tauri dev`
+there — use the paste-a-code path.
 
 ## Releasing a new version
 

@@ -50,6 +50,11 @@
     "createUpdaterArtifacts": true
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["atelier"]
+      }
+    },
     "updater": {
       "endpoints": [
         "https://github.com/oskarglauser/atelier/releases/latest/download/latest.json"

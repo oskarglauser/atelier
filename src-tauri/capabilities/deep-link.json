@@ -1,0 +1,9 @@
+{
+  "identifier": "deep-link",
+  "description": "Allow the app to open documents from atelier:// join links",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:default",
+    "deep-link:default"
+  ]
+}

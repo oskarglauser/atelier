@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Users, Copy, Check } from 'lucide-react'
 import { useDocument } from '../hooks/useDocument'
 import { useRemotePeers } from './usePresence'
-import { encodeTicket } from './ticket'
+import { encodeTicket, ticketWebUrl } from './ticket'
 
 /**
  * Sharing control for the current document: how many people are in it, and the
@@ -16,7 +16,7 @@ export function CollabShare() {
   const { docId, collabStatus } = useDocument()
   const peers = useRemotePeers()
   const [open, setOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'link' | 'code' | null>(null)
 
   if (!collabStatus) return null
 
@@ -25,14 +25,14 @@ export function CollabShare() {
       ? encodeTicket({ docId, peers: collabStatus.endpointId ? [collabStatus.endpointId] : [] })
       : ''
 
-  const copy = async () => {
-    if (!ticket) return
+  const copy = async (text: string, which: 'link' | 'code') => {
+    if (!text) return
     try {
-      await navigator.clipboard.writeText(ticket)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
+      await navigator.clipboard.writeText(text)
+      setCopied(which)
+      window.setTimeout(() => setCopied(null), 1500)
     } catch {
-      // Clipboard denied — the field is selectable as a fallback
+      // Clipboard denied — both fields are selectable as a fallback
     }
   }
 
@@ -72,12 +72,37 @@ export function CollabShare() {
         <div className="absolute right-0 top-9 z-50 w-72 rounded-lg border border-border bg-bg-secondary p-3 shadow-xl">
           {collabStatus.state === 'error' ? (
             <p className="text-[12px] text-danger">{collabStatus.error}</p>
+          ) : !ticket ? (
+            // Still binding an endpoint. There is no ticket to show yet, and an
+            // empty one would render as a link that goes nowhere.
+            <p className="text-[12px] text-text-dim">Getting this document ready to share…</p>
           ) : (
             <>
-              <p className="mb-2 text-[12px] text-text-secondary">
-                Anyone on this network with the code below can open and edit this document.
+              <p className="mb-2.5 text-[12px] text-text-secondary">
+                Anyone on this network with this link can open and edit the document.
                 There is no way to revoke it, so share it like a password.
               </p>
+
+              <label className="mb-1 block text-[11px] font-medium text-text-dim">Link</label>
+              <div className="mb-3 flex items-center gap-1.5">
+                <input
+                  readOnly
+                  value={ticketWebUrl(ticket)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1 font-mono text-[11px] text-text"
+                />
+                <button
+                  onClick={() => copy(ticketWebUrl(ticket), 'link')}
+                  title="Copy link"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
+                >
+                  {copied === 'link' ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.6} />}
+                </button>
+              </div>
+
+              <label className="mb-1 block text-[11px] font-medium text-text-dim">
+                Or paste this code into Join
+              </label>
               <div className="flex items-center gap-1.5">
                 <input
                   readOnly
@@ -86,11 +111,11 @@ export function CollabShare() {
                   className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1 font-mono text-[11px] text-text"
                 />
                 <button
-                  onClick={copy}
+                  onClick={() => copy(ticket, 'code')}
                   title="Copy invite code"
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text"
                 >
-                  {copied ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.6} />}
+                  {copied === 'code' ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.6} />}
                 </button>
               </div>
             </>

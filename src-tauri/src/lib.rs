@@ -70,6 +70,27 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .setup(|_app| {
+            // Windows and Linux can claim the `atelier://` scheme at runtime,
+            // which is what makes join links testable with `tauri dev`. macOS
+            // resolves schemes through the installed bundle's Info.plist only,
+            // so there it works from an installed .app and not from dev.
+            //
+            // No single-instance plugin on purpose. macOS hands a link to the
+            // running app either way, and on Windows and Linux a link opening a
+            // second instance is the lesser evil: forcing one instance would
+            // also stop you running two copies side by side, which is how you
+            // try out collaboration on a single machine.
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                // A failure here costs join links, not the app — a second
+                // install of a dev build can hold the registration.
+                let _ = _app.deep_link().register_all();
+            }
+            Ok(())
+        })
         .manage(collab::CollabState::default())
         .invoke_handler(tauri::generate_handler![
             list_system_fonts,

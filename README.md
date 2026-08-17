@@ -28,19 +28,21 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 ## What's new in 0.13.0
 
 - **Work together on the same document, with no server in between.** In the
-  desktop app, open a project and click **Share** to get an invite code. Anyone
-  on the same network who pastes it into **Join** opens the same document and
-  edits it with you, live. Their cursor, their selection, and their changes
-  appear as they work.
+  desktop app, open a project and click **Share** to get a link. Anyone on the
+  same network who opens it edits the document with you, live — their cursor,
+  their selection, and their changes appear as they work.
 - Connections are direct between the two machines. Nothing is uploaded, no
   account is involved, and it keeps working if the network has no internet
   access at all.
+- A share link opens the document straight in the app. If the person does not
+  have Atelier yet, the link explains what it is and where to get it. There is
+  also a short code to paste into **Join** by hand.
 - In the browser, two tabs or windows of the same project now stay in sync with
   each other.
 
 Collaboration is a desktop-only feature: it needs network access a browser tab
 is not allowed to have. See [Sharing a document](#sharing-a-document) for what
-an invite code grants.
+a share link grants.
 
 ## What's new in 0.12.0
 
@@ -100,9 +102,21 @@ Atelier does not use cloud storage. Project metadata and document data are saved
 
 ## Sharing a document
 
-In the desktop app, **Share** in the top bar produces an invite code for the
-open document. Paste it into **Join** on another machine and both of you are
-editing the same document.
+In the desktop app, **Share** in the top bar produces a link to the open
+document. Send it to someone on your network and opening it puts you both in
+the same document.
+
+The link opens Atelier directly if it is installed. Otherwise it lands on a page
+that says what the link is and offers the download. Below the link is a short
+code you can read out or paste into **Join** by hand, which is useful when the
+person is designing on a different machine from the one reading the message.
+
+Two details about the link itself. The code lives in the part of the URL after
+the `#`, which browsers never send to a server — so pasting a link into a chat
+does not hand the document to the web host. And opening Atelier from a link
+works from an installed app: on macOS the system only recognises `atelier://`
+links for an app in `/Applications`, so a link will not open a copy you are
+running with `npm run tauri:dev`. Pasting the code into **Join** always works.
 
 How it works: each machine has a cryptographic identity, finds the other over
 mDNS on the local network, and opens an encrypted QUIC connection directly to
@@ -113,11 +127,11 @@ to reach each other.
 
 Two things worth knowing before you share:
 
-- **The invite code is the permission.** Anyone holding it can open and edit the
+- **The link is the permission.** Anyone holding it can open and edit the
   document. Treat it like a password.
-- **There is no revoking it.** Sharing it once shares it for good. If a code
+- **There is no revoking it.** Sharing it once shares it for good. If a link
   gets out, the only remedy is to duplicate the project, which gives you a
-  document with a new identity and a new code.
+  document with a new identity and a new link.
 
 Peers must be on the same local network. Collaborating across the internet is
 not supported yet.
