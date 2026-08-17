@@ -85,7 +85,7 @@ export class IrohProvider {
         onFrame: channel,
       })
       if (this.destroyed) {
-        await invoke('collab_stop')
+        await invoke('collab_stop', { docId: this.docId })
         return
       }
 
@@ -115,7 +115,11 @@ export class IrohProvider {
     if (this.destroyed) return
     try {
       const { invoke } = (await import('@tauri-apps/api/core')) as { invoke: Invoke }
-      await invoke('collab_send', { frame: Array.from(frame) })
+      // docId scopes the frame to this document — see collab_send in Rust. The
+      // destroyed check above can't cover this on its own, because a send that
+      // has already passed it can still be awaiting the import when the next
+      // document connects.
+      await invoke('collab_send', { docId: this.docId, frame: Array.from(frame) })
     } catch {
       // A dropped frame is recoverable — the anti-entropy tick re-offers state.
     }
@@ -143,7 +147,7 @@ export class IrohProvider {
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'destroy')
     try {
       const { invoke } = (await import('@tauri-apps/api/core')) as { invoke: Invoke }
-      await invoke('collab_stop')
+      await invoke('collab_stop', { docId: this.docId })
     } catch {
       // Already gone, or Tauri unavailable
     }
