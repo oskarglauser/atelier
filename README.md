@@ -25,6 +25,17 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
+## What's new in 0.13.1
+
+- **Typing now appears as you type.** Text used to reach the people you are
+  working with only once you deselected the box, so they watched it sit
+  unchanged while you wrote a paragraph into it.
+- A shared document shows its real name to everyone who opens it, instead of
+  leaving people who joined looking at "Shared project".
+- Undoing a text edit takes one press again. Edits were writing fields that had
+  not changed, which piled up undo steps that appeared to do nothing — fixing
+  that also cuts needless chatter between machines on every other edit.
+
 ## What's new in 0.13.0
 
 - **Work together on the same document, with no server in between.** In the

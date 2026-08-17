@@ -1,6 +1,6 @@
 {
   "productName": "Atelier",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "identifier": "com.atelier.design",
   "build": {
     "frontendDist": "../dist",
