@@ -26,6 +26,7 @@ import { hasDraggableAncestor } from './utils/dragHandle'
 import { ShapeRenderer } from './ShapeRenderer'
 import { SelectionOverlay } from './SelectionOverlay'
 import { DropTargetHighlight } from './DropTargetHighlight'
+import { HoverHighlight } from './HoverHighlight'
 import { RemotePresence } from './RemotePresence'
 import { usePresencePublisher } from '../collab/usePresence'
 import { SelectionBox } from './SelectionBox'
@@ -848,6 +849,7 @@ export function Canvas() {
           ))}
         </Layer>
         <Layer name="overlay-layer">
+          <HoverHighlight />
           <DropTargetHighlight />
           <RemotePresence />
           <SelectionOverlay stageRef={stageRef} />

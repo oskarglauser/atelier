@@ -459,6 +459,13 @@ export function LayersPanel() {
             onClick={(e) => {
               e.stopPropagation()
               deleteShapes(doc, activePageId, new Set([shape.id]))
+              // Drop it (and anything it contained) from the selection —
+              // otherwise the properties panel and transformer keep pointing
+              // at shapes that no longer exist.
+              const gone = new Set([shape.id, ...getDescendants(shapes, shape.id).map((d) => d.id)])
+              if ([...selectedIds].some((id) => gone.has(id))) {
+                setSelectedIds(new Set([...selectedIds].filter((id) => !gone.has(id))))
+              }
             }}
             className="opacity-0 group-hover:opacity-40 hover:!opacity-80 text-danger shrink-0 transition-opacity"
             title="Delete"
