@@ -12,6 +12,9 @@ import { useCanvasStore, snapValue } from '../store/canvasStore'
 import { snapWithRulers } from '../utils/snapToRulers'
 import { addShape, updateShape, takeShapeOrderOf, deleteShapes, duplicateShapes, groupShapes, ungroupShapes, getAllShapes, bringToFront, sendToBack } from '../document/operations'
 import { performBooleanOp } from '../operations/booleanOps'
+import { makeCompoundPath, releaseCompoundPath, canReleaseCompound } from '../operations/compoundPath'
+import { expandStrokeOnSelection, offsetSelectedPaths, canExpandStroke, canOffset, DEFAULT_OFFSET_AMOUNT } from '../operations/offsetPath'
+import { makeMask, removeMask, canUseAsMask, hasMaskInSelection } from '../operations/masks'
 import { outlineSelectedText } from '../operations/textToOutlines'
 import { alignSelectedObjects, distributeSelectedObjects } from '../operations/arrangeObjects'
 import type { Shape } from '../types/document'
@@ -19,6 +22,7 @@ import { resolveParentForBounds, isFullyContained } from '../document/hierarchy'
 import { simplifyPath, pointsToSvgPath, getPointsBounds } from '../utils/path'
 import { getShapesBounds, isNearPoint } from '../utils/math'
 import { shapesToSvgString } from '../utils/exportShape'
+import { hasDraggableAncestor } from './utils/dragHandle'
 import { ShapeRenderer } from './ShapeRenderer'
 import { SelectionOverlay } from './SelectionOverlay'
 import { DropTargetHighlight } from './DropTargetHighlight'
@@ -35,6 +39,7 @@ import {
   AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd,
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   AlignHorizontalSpaceBetween, AlignVerticalSpaceBetween,
+  Combine, Split, Expand, Spline, Scissors, SquareDashed,
 } from 'lucide-react'
 
 function dispatchEditorShortcut(key: 'c' | 'v') {
@@ -50,13 +55,21 @@ export function Canvas() {
   const stageRef = useRef<Konva.Stage>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const shapes = useShapes()
+  const altDragPreview = useUIStore((s) => s.altDragPreview)
   const shapesMap = useMemo(() => new Map(shapes.map((s) => [s.id, s])), [shapes])
+  // Alt-drag copies join the tree for rendering only, so frames nest them and
+  // their z-order matches the real duplicate. They stay out of shapesMap, which
+  // backs selection, hit-testing, snapping and export.
+  const renderShapes = useMemo(
+    () => (altDragPreview ? [...shapes, ...altDragPreview] : shapes),
+    [shapes, altDragPreview]
+  )
   const rootShapes = useMemo(() => {
     const containerIds = new Set(
-      shapes.filter((s) => s.type === 'frame' || s.type === 'group').map((s) => s.id)
+      renderShapes.filter((s) => s.type === 'frame' || s.type === 'group').map((s) => s.id)
     )
-    return shapes.filter((s) => !s.parentId || !containerIds.has(s.parentId))
-  }, [shapes])
+    return renderShapes.filter((s) => !s.parentId || !containerIds.has(s.parentId))
+  }, [renderShapes])
   const { onWheel } = useViewport()
   const { zoom, offsetX, offsetY, setStageSize } = useViewportStore()
   const { activeTool, selectedIds, setSelectedIds, clearSelection, setActiveTool, setEditingTextId } = useUIStore()
@@ -82,6 +95,15 @@ export function Canvas() {
     if (stageRef.current) setStageRef(stageRef.current)
     return () => setStageRef(null)
   }, [])
+
+  // Undo/redo can delete shapes out from under the selection, leaving the
+  // context menu and panels acting on ids that no longer exist.
+  useEffect(() => {
+    if (selectedIds.size === 0) return
+    const ids = new Set(shapes.map((s) => s.id))
+    const pruned = [...selectedIds].filter((id) => ids.has(id))
+    if (pruned.length !== selectedIds.size) setSelectedIds(new Set(pruned))
+  }, [shapes, selectedIds, setSelectedIds])
 
   useEffect(() => {
     const container = containerRef.current
@@ -249,7 +271,16 @@ export function Canvas() {
     // remain available even when the pointer is over empty canvas.
     if (e.evt.button === 2) return
 
-    if (e.evt.button === 1 || (e.evt.button === 0 && e.evt.altKey) || (e.evt.button === 0 && spaceHeld)) {
+    // Alt+drag on a draggable shape is the duplicate gesture (see
+    // SelectionOverlay), so alt only pans when the pointer is over something that
+    // can't be alt-dragged anyway — empty canvas, or a locked shape. Middle-click
+    // and space+drag pan from anywhere, including over shapes.
+    const wantsPan =
+      e.evt.button === 1 ||
+      (e.evt.button === 0 && spaceHeld) ||
+      (e.evt.button === 0 && e.evt.altKey && !hasDraggableAncestor(e.target))
+
+    if (wantsPan) {
       setIsPanning(true)
       setPanStart({ x: e.evt.clientX, y: e.evt.clientY })
       return
@@ -608,6 +639,35 @@ export function Canvas() {
     if (outlineIds.length > 0) setSelectedIds(new Set(outlineIds))
   }
 
+  const canCompound = selected.length >= 2
+  const canRelease = canReleaseCompound(selected)
+  const canExpand = canExpandStroke(selected)
+  const canOffsetSel = canOffset(selected)
+  const maskable = canUseAsMask(selected, shapes)
+  const hasMask = hasMaskInSelection(selected)
+
+  const handleMakeCompound = async () => {
+    const id = await makeCompoundPath(doc, activePageId, selectedIds)
+    if (id) setSelectedIds(new Set([id]))
+  }
+  const handleReleaseCompound = async () => {
+    const ids = await releaseCompoundPath(doc, activePageId, selected[0].id)
+    if (ids.length > 0) setSelectedIds(new Set(ids))
+  }
+  const handleExpandStroke = async () => {
+    const ids = await expandStrokeOnSelection(doc, activePageId, selectedIds)
+    if (ids.length > 0) setSelectedIds(new Set(ids))
+  }
+  const handleOffsetPath = async () => {
+    const ids = await offsetSelectedPaths(doc, activePageId, selectedIds, DEFAULT_OFFSET_AMOUNT)
+    if (ids.length > 0) setSelectedIds(new Set(ids))
+  }
+  const handleUseAsMask = () => {
+    const sel = makeMask(doc, activePageId, selectedIds)
+    if (sel) setSelectedIds(new Set([sel]))
+  }
+  const handleRemoveMask = () => removeMask(doc, activePageId, selectedIds)
+
   const copyAsPng = useCallback(async () => {
     const stage = stageRef.current
     if (!stage || selectedIds.size === 0) return
@@ -707,6 +767,21 @@ export function Canvas() {
           { label: 'Intersect', icon: SquaresIntersect, action: () => handleBooleanOp('intersect') },
           { label: 'Exclude', icon: Diff, action: () => handleBooleanOp('exclude') },
         ] : []),
+        ...(canCompound || canRelease ? [
+          { divider: true } as const,
+          ...(canCompound ? [{ label: 'Make Compound Path', icon: Combine, shortcut: '⌘8', action: handleMakeCompound }] : []),
+          ...(canRelease ? [{ label: 'Release Compound Path', icon: Split, shortcut: '⌥⌘8', action: handleReleaseCompound }] : []),
+        ] : []),
+        ...(canExpand || canOffsetSel ? [
+          { divider: true } as const,
+          ...(canExpand ? [{ label: 'Expand Stroke', icon: Expand, shortcut: '⌘⇧E', action: handleExpandStroke }] : []),
+          ...(canOffsetSel ? [{ label: `Offset Path by ${DEFAULT_OFFSET_AMOUNT}`, icon: Spline, action: handleOffsetPath }] : []),
+        ] : []),
+        ...(maskable || hasMask ? [
+          { divider: true } as const,
+          ...(maskable ? [{ label: 'Use as Mask', icon: Scissors, shortcut: '⌃⌘M', action: handleUseAsMask }] : []),
+          ...(hasMask ? [{ label: 'Remove Mask', icon: SquareDashed, action: handleRemoveMask }] : []),
+        ] : []),
         ...(hasText ? [
           { divider: true } as const,
           { label: 'Outline Text', icon: TypeOutline, shortcut: '⌘⇧O', action: handleTextToOutlines },
@@ -761,7 +836,7 @@ export function Canvas() {
             />
           )}
           {rootShapes.map((shape) => (
-            <ShapeRenderer key={shape.id} shape={shape} onSelect={onSelect} allShapes={shapes} />
+            <ShapeRenderer key={shape.id} shape={shape} onSelect={onSelect} allShapes={renderShapes} />
           ))}
         </Layer>
         <Layer name="overlay-layer">

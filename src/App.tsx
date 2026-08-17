@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useProjectStore } from './projects/projectStore'
 import { ProjectBrowser } from './projects/ProjectBrowser'
-import { Editor } from './Editor'
 import { UpdateNotification } from './ui/UpdateNotification'
+
+// The editor pulls in Konva, the panels, and the vector-ops stack — most of
+// the bundle. Splitting it keeps the project browser's first paint light.
+const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })))
 
 function parseHash(): { projectId: string | null; pageId: string | null } {
   const hash = window.location.hash
@@ -32,7 +35,13 @@ export default function App() {
 
   return (
     <>
-      {activeProjectId ? <Editor projectId={activeProjectId} /> : <ProjectBrowser />}
+      {activeProjectId ? (
+        <Suspense fallback={<div className="flex items-center justify-center h-screen bg-bg text-text-secondary">Loading...</div>}>
+          <Editor projectId={activeProjectId} />
+        </Suspense>
+      ) : (
+        <ProjectBrowser />
+      )}
       <UpdateNotification />
     </>
   )

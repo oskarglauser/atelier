@@ -54,6 +54,10 @@ const groups: ShortcutGroup[] = [
       { label: 'Lock or unlock', keys: ['Mod', 'Shift', 'L'] },
       { label: 'Hide or show', keys: ['Mod', 'Shift', 'H'] },
       { label: 'Outline text', keys: ['Mod', 'Shift', 'O'] },
+      { label: 'Make compound path', keys: ['Mod', '8'] },
+      { label: 'Release compound path', keys: ['Alt', 'Mod', '8'] },
+      { label: 'Expand stroke', keys: ['Mod', 'Shift', 'E'] },
+      { label: 'Use as mask', keys: ['Ctrl', 'Mod', 'M'] },
     ],
   },
   {
@@ -78,9 +82,11 @@ const groups: ShortcutGroup[] = [
 ]
 
 function ShortcutKeys({ keys }: { keys: string[] }) {
-  const modifier = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-    ? '⌘'
-    : 'Ctrl'
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+  // Match the context menu's glyphs on Mac; words elsewhere
+  const modifierLabels: Record<string, string> = isMac
+    ? { Mod: '⌘', Shift: '⇧', Alt: '⌥', Ctrl: '⌃' }
+    : { Mod: 'Ctrl' }
 
   return (
     <span className="flex shrink-0 items-center gap-1">
@@ -89,7 +95,7 @@ function ShortcutKeys({ keys }: { keys: string[] }) {
           key={`${key}-${index}`}
           className="min-w-5 rounded-md border border-border-light bg-bg-tertiary px-1.5 py-0.5 text-center font-sans text-[10px] font-medium leading-4 text-text-secondary shadow-sm"
         >
-          {key === 'Mod' ? modifier : key}
+          {modifierLabels[key] ?? key}
         </kbd>
       ))}
     </span>

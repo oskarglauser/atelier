@@ -7,6 +7,9 @@ import { addShape, deleteShapes, duplicateShapes, updateShape, groupShapes, ungr
 import { selectionRoots, getDescendants, resolveParentForBounds } from '../document/hierarchy'
 import { getShapesBounds } from '../utils/math'
 import { outlineSelectedText } from '../operations/textToOutlines'
+import { makeCompoundPath, releaseCompoundPath, canReleaseCompound } from '../operations/compoundPath'
+import { expandStrokeOnSelection } from '../operations/offsetPath'
+import { makeMask, removeMask, hasMaskInSelection } from '../operations/masks'
 
 import { NUDGE_AMOUNT, NUDGE_AMOUNT_SHIFT } from '../utils/constants'
 import type { ToolType } from '../types/tools'
@@ -269,6 +272,50 @@ export function useKeyboard() {
         void outlineSelectedText(doc, activePageId, selectedIds).then((outlineIds) => {
           if (outlineIds.length > 0) useUIStore.getState().setSelectedIds(new Set(outlineIds))
         })
+        return
+      }
+
+      // ⌘8 make compound path / ⌥⌘8 release compound path.
+      // e.code, not e.key: Option+8 types '•' on macOS keyboards.
+      if (meta && e.code === 'Digit8' && selectedIds.size > 0) {
+        e.preventDefault()
+        const all = getAllShapes(doc, activePageId)
+        const selected = all.filter((s) => selectedIds.has(s.id))
+        if (e.altKey) {
+          if (canReleaseCompound(selected)) {
+            void releaseCompoundPath(doc, activePageId, selected[0].id).then((ids) => {
+              if (ids.length > 0) useUIStore.getState().setSelectedIds(new Set(ids))
+            })
+          }
+        } else if (selected.length >= 2) {
+          void makeCompoundPath(doc, activePageId, selectedIds).then((id) => {
+            if (id) useUIStore.getState().setSelectedIds(new Set([id]))
+          })
+        }
+        return
+      }
+
+      // ⌘⇧E expand stroke
+      if (meta && e.shiftKey && key === 'e' && selectedIds.size > 0) {
+        e.preventDefault()
+        void expandStrokeOnSelection(doc, activePageId, selectedIds).then((ids) => {
+          if (ids.length > 0) useUIStore.getState().setSelectedIds(new Set(ids))
+        })
+        return
+      }
+
+      // ⌃⌘M use as mask / remove mask (both modifiers explicitly — `meta`
+      // alone treats ctrl and cmd as interchangeable)
+      if (e.ctrlKey && e.metaKey && key === 'm' && selectedIds.size > 0) {
+        e.preventDefault()
+        const all = getAllShapes(doc, activePageId)
+        const selected = all.filter((s) => selectedIds.has(s.id))
+        if (hasMaskInSelection(selected)) {
+          removeMask(doc, activePageId, selectedIds)
+        } else {
+          const sel = makeMask(doc, activePageId, selectedIds)
+          if (sel) useUIStore.getState().setSelectedIds(new Set([sel]))
+        }
         return
       }
 

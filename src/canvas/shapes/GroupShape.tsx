@@ -2,6 +2,7 @@ import { Group, Rect } from 'react-konva'
 import type { GroupShape as GroupShapeType, Shape } from '../../types/document'
 import { useUIStore } from '../../store/uiStore'
 import { memo, type ReactNode } from 'react'
+import { MaskedChildren } from '../MaskedChildren'
 
 interface Props {
   shape: GroupShapeType
@@ -12,6 +13,8 @@ interface Props {
 
 export const GroupShapeComponent = memo(function GroupShapeComponent({ shape, onSelect, childShapes, renderChild }: Props) {
   const setHoveredId = useUIStore((s) => s.setHoveredId)
+  const isHovered = useUIStore((s) => s.hoveredId === shape.id)
+  const hasMask = !!childShapes?.some((c) => c.isMask && c.visible)
 
   return (
     <Group
@@ -35,8 +38,20 @@ export const GroupShapeComponent = memo(function GroupShapeComponent({ shape, on
       />
       {childShapes && renderChild && (
         <Group x={-shape.x} y={-shape.y}>
-          {childShapes.map((child) => renderChild(child))}
+          <MaskedChildren childShapes={childShapes} renderChild={renderChild} />
         </Group>
+      )}
+      {isHovered && hasMask && (
+        // Masked content extends invisibly past the clip; the dashed bounds
+        // explain on hover why children appear cut off.
+        <Rect
+          width={shape.width}
+          height={shape.height}
+          stroke="rgba(74, 158, 255, 0.7)"
+          strokeWidth={1}
+          dash={[4, 3]}
+          listening={false}
+        />
       )}
     </Group>
   )

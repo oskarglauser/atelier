@@ -2,7 +2,11 @@ import { useShapes } from '../hooks/useShapes'
 import { useUIStore } from '../store/uiStore'
 import { useDocument } from '../hooks/useDocument'
 import { updateShape, addShape } from '../document/operations'
-import type { Shape, TextShape, LineShape, LineCap, FrameShape, FrameRuler, ExportConfig, ImageShape } from '../types/document'
+import type { Shape, TextShape, LineShape, LineCap, FrameShape, FrameRuler, ExportConfig, ImageShape, PathShape } from '../types/document'
+import { countSubpaths } from '../utils/pathData'
+import { offsetSelectedPaths, canOffset, DEFAULT_OFFSET_AMOUNT } from '../operations/offsetPath'
+import { isContainer } from '../document/hierarchy'
+import { useHistoryStore } from '../store/historyStore'
 import { useCallback, useMemo, useState } from 'react'
 import { useCanvasStore, type ColorMode } from '../store/canvasStore'
 import { useViewportStore } from '../store/viewportStore'
@@ -25,6 +29,7 @@ import {
   Italic, Underline, Strikethrough,
   CaseSensitive, CaseUpper, CaseLower,
   Baseline, ALargeSmall, MoveVertical, WholeWord, WrapText,
+  AlignHorizontalDistributeCenter, Sparkles, Text,
   Download, Trash2, Plus, Ruler, Link, Unlink,
 } from 'lucide-react'
 
@@ -82,6 +87,36 @@ function ArrangementButton({
     >
       {children}
     </button>
+  )
+}
+
+function OffsetSection({ doc, activePageId, selectedIds }: {
+  doc: ReturnType<typeof useDocument>['doc']
+  activePageId: string
+  selectedIds: Set<string>
+}) {
+  const [amount, setAmount] = useState(DEFAULT_OFFSET_AMOUNT)
+
+  const apply = async () => {
+    if (!amount) return
+    // Each Apply is its own undo step even inside the capture window
+    useHistoryStore.getState().undoManager?.stopCapturing()
+    const ids = await offsetSelectedPaths(doc, activePageId, selectedIds, amount)
+    if (ids.length > 0) useUIStore.getState().setSelectedIds(new Set(ids))
+  }
+
+  return (
+    <Section title="Offset Path">
+      <div className="flex items-center gap-2">
+        <NumberField label="±" value={amount} onChange={setAmount} step={1} />
+        <button
+          onClick={apply}
+          className="flex items-center justify-center px-3 py-1 bg-bg-tertiary text-text-dim hover:text-text rounded-md text-[11px] font-medium transition-colors"
+        >
+          Apply
+        </button>
+      </div>
+    </Section>
   )
 }
 
@@ -688,6 +723,36 @@ export function PropertiesPanel() {
         </div>
       </Section>
 
+      {first.type === 'path' && countSubpaths((first as PathShape).pathData) > 1 && (
+        <Section title="Compound Path">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-text-secondary">Even-odd fill</span>
+            <Switch
+              checked={((first as PathShape).fillRule ?? 'nonzero') === 'evenodd'}
+              onChange={(v) => update('fillRule', v ? 'evenodd' : 'nonzero')}
+              ariaLabel="Even-odd fill rule"
+            />
+          </div>
+        </Section>
+      )}
+
+      {canOffset(selected) && (
+        <OffsetSection doc={doc} activePageId={activePageId} selectedIds={selectedIds} />
+      )}
+
+      {selected.length === 1 && first.parentId && shapes.some((s) => s.id === first.parentId && isContainer(s)) && (
+        <Section title="Mask">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-text-secondary">Use as mask</span>
+            <Switch
+              checked={first.isMask}
+              onChange={(v) => update('isMask', v)}
+              ariaLabel="Use as mask"
+            />
+          </div>
+        </Section>
+      )}
+
       {first.type === 'line' && (
         <Section title="Line Ends">
           <div className="flex flex-col gap-1.5">
@@ -768,6 +833,13 @@ export function PropertiesPanel() {
               >
                 <Strikethrough size={14} strokeWidth={2} />
               </ToggleButton>
+              <ToggleButton
+                active={textShape.fontVariant === 'small-caps'}
+                onClick={() => update('fontVariant' as keyof Shape, textShape.fontVariant === 'small-caps' ? 'normal' : 'small-caps')}
+                title="Small caps"
+              >
+                <span className="text-[10px] font-semibold tracking-wide">ᴀᴀ</span>
+              </ToggleButton>
             </div>
           </Section>
 
@@ -815,6 +887,30 @@ export function PropertiesPanel() {
                 title="Align bottom"
               >
                 <AlignVerticalJustifyEnd size={14} strokeWidth={1.5} />
+              </ToggleButton>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <span className="text-[11px] text-text-dim mr-1.5">Wrap</span>
+              <ToggleButton
+                active={textShape.textWrap === 'auto'}
+                onClick={() => update('textWrap' as keyof Shape, 'auto')}
+                title="Auto — break lines greedily"
+              >
+                <Text size={14} strokeWidth={1.5} />
+              </ToggleButton>
+              <ToggleButton
+                active={textShape.textWrap === 'balance'}
+                onClick={() => update('textWrap' as keyof Shape, 'balance')}
+                title="Balance — even out line lengths"
+              >
+                <AlignHorizontalDistributeCenter size={14} strokeWidth={1.5} />
+              </ToggleButton>
+              <ToggleButton
+                active={textShape.textWrap === 'pretty'}
+                onClick={() => update('textWrap' as keyof Shape, 'pretty')}
+                title="Pretty — avoid a lone word on the last line"
+              >
+                <Sparkles size={14} strokeWidth={1.5} />
               </ToggleButton>
             </div>
           </Section>

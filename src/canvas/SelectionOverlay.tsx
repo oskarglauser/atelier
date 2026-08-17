@@ -5,7 +5,7 @@ import { useUIStore } from '../store/uiStore'
 import { useHistoryStore } from '../store/historyStore'
 import { useDocument } from '../hooks/useDocument'
 import { useShapes } from '../hooks/useShapes'
-import { updateShape, duplicateShapes, moveShapes, getAllShapes } from '../document/operations'
+import { updateShape, duplicateShapes, moveShapes, getAllShapes, cloneSubtrees } from '../document/operations'
 import { selectionRoots, getDescendants, getAncestors, getChildren, findDropFrame } from '../document/hierarchy'
 import type { Shape } from '../types/document'
 import { snapWithRulers } from '../utils/snapToRulers'
@@ -279,6 +279,17 @@ export function SelectionOverlay({ stageRef }: Props) {
     // The grabbed node may not be a root in the entourage case
     if (!startPositions.has(id)) startPositions.set(id, { x: shape.x, y: shape.y })
 
+    const alt = e.evt.altKey && isSelected
+
+    // Show the copies immediately rather than only on drop. Yjs still holds the
+    // start positions for the whole gesture, so these render exactly where the
+    // real duplicates will land. Built with the same cloneSubtrees the commit
+    // uses, at zero offset, so the preview can't drift from the result.
+    if (alt) {
+      const preview = cloneSubtrees(allShapes, roots.map((r) => r.id)).flatMap((s) => s.clones)
+      useUIStore.getState().setAltDragPreview(preview)
+    }
+
     isDragging.current = true
     gestureRef.current = {
       primaryId: id,
@@ -290,7 +301,7 @@ export function SelectionOverlay({ stageRef }: Props) {
       rootShapesAtStart,
       allShapesAtStart: allShapes,
       movedIds,
-      alt: e.evt.altKey && isSelected,
+      alt,
       committed: false,
       lastDelta: { x: 0, y: 0 },
     }
@@ -434,6 +445,7 @@ export function SelectionOverlay({ stageRef }: Props) {
     }, 'local')
 
     useUIStore.getState().setDropTargetFrameId(null)
+    useUIStore.getState().setAltDragPreview(null)
     gestureRef.current = null
     isDragging.current = false
   }, [doc, activePageId])

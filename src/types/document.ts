@@ -38,6 +38,11 @@ export interface ShapeBase {
    * move (see src/document/ordering.ts).
    */
   order: number
+  /**
+   * Inside a group or frame, a child with isMask clips the siblings above it
+   * (up to the next mask child). The mask shape itself does not paint.
+   */
+  isMask: boolean
 }
 
 export interface RectangleShape extends ShapeBase {
@@ -66,6 +71,8 @@ export interface PathShape extends ShapeBase {
   closed: boolean
   scaleX?: number
   scaleY?: number
+  /** Winding rule for fill and hit-testing; 'evenodd' renders subpath overlaps as holes */
+  fillRule?: 'nonzero' | 'evenodd'
 }
 
 export interface TextShape extends ShapeBase {
@@ -83,6 +90,9 @@ export interface TextShape extends ShapeBase {
   textTransform: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
   paragraphSpacing: number
   kerning: number[]
+  /** Line-breaking strategy: balance evens out line lengths, pretty avoids a lone word on the last line */
+  textWrap: 'auto' | 'balance' | 'pretty'
+  fontVariant: 'normal' | 'small-caps'
 }
 
 export type ImageObjectFit = 'cover' | 'contain'

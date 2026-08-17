@@ -4,11 +4,13 @@ import { useUIStore } from '../../store/uiStore'
 import { useViewportStore } from '../../store/viewportStore'
 import { useCanvasStore } from '../../store/canvasStore'
 import { FrameRulers } from './FrameRulers'
-import { memo, useMemo, useCallback, useRef, type ReactNode } from 'react'
+import { memo, useMemo, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import type Konva from 'konva'
 import { getGradientProps } from '../utils/gradientProps'
 import { drawGradientNoiseFill } from '../utils/gradientFill'
 import { rectHitFunc } from '../utils/shapeHelpers'
+import { armDragFromHandle } from '../utils/dragHandle'
+import { MaskedChildren } from '../MaskedChildren'
 
 interface Props {
   shape: FrameShapeType
@@ -21,6 +23,7 @@ export const FrameShapeComponent = memo(function FrameShapeComponent({ shape, on
   const setHoveredId = useUIStore((s) => s.setHoveredId)
   const setEditingFrameTitleId = useUIStore((s) => s.setEditingFrameTitleId)
   const isEditingTitle = useUIStore((s) => s.editingFrameTitleId === shape.id)
+  const activeTool = useUIStore((s) => s.activeTool)
   const zoom = useViewportStore((s) => s.zoom)
   const showRulers = useCanvasStore((s) => s.showRulers)
   const fontSize = 11 / zoom
@@ -67,6 +70,27 @@ export const FrameShapeComponent = memo(function FrameShapeComponent({ shape, on
 
   const groupRef = useRef<Konva.Group>(null)
   const titleRef = useRef<Konva.Text>(null)
+  const cursorElRef = useRef<HTMLDivElement | null>(null)
+
+  // The title doubles as a drag handle, so it owns the canvas cursor while
+  // hovered; '' hands it back to the container's tool-driven cursor.
+  const setCursor = useCallback((cursor: string) => {
+    const container = titleRef.current?.getStage()?.container()
+    if (!container) return
+    container.style.cursor = cursor
+    cursorElRef.current = cursor === '' ? null : container
+  }, [])
+
+  // Switching tools stops the shapes layer listening, so no mouseleave ever
+  // arrives to clear a 'move' left over from hovering the title.
+  useEffect(() => {
+    if (activeTool !== 'select') setCursor('')
+  }, [activeTool, setCursor])
+
+  // A frame deleted or hidden mid-hover never fires mouseleave
+  useEffect(() => () => {
+    if (cursorElRef.current) cursorElRef.current.style.cursor = ''
+  }, [])
 
   const syncTitle = useCallback(() => {
     if (groupRef.current && titleRef.current) {
@@ -91,12 +115,21 @@ export const FrameShapeComponent = memo(function FrameShapeComponent({ shape, on
         visible={shape.visible}
         onMouseDown={(e) => {
           if (isEditingTitle) return
+          // Selection first — SelectionOverlay's dragstart reads selectedIds to
+          // resolve roots, entourage and alt-duplicate for the gesture.
           onSelect(shape.id, e.evt)
+          armDragFromHandle(groupRef.current, e)
         }}
         onDblClick={() => setEditingFrameTitleId(shape.id)}
         onDblTap={() => setEditingFrameTitleId(shape.id)}
-        onMouseEnter={() => setHoveredId(shape.id)}
-        onMouseLeave={() => setHoveredId(null)}
+        onMouseEnter={() => {
+          setHoveredId(shape.id)
+          if (!shape.locked && !isEditingTitle) setCursor('move')
+        }}
+        onMouseLeave={() => {
+          setHoveredId(null)
+          setCursor('')
+        }}
       />
       <Group
         ref={groupRef}
@@ -121,7 +154,7 @@ export const FrameShapeComponent = memo(function FrameShapeComponent({ shape, on
         {bgElement}
         {childShapes && renderChild && (
           <Group x={-shape.x} y={-shape.y}>
-            {childShapes.map((child) => renderChild(child))}
+            <MaskedChildren childShapes={childShapes} renderChild={renderChild} />
           </Group>
         )}
         {showRulers && <FrameRulers shape={shape} />}

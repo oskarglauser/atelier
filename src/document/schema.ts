@@ -2,7 +2,11 @@ import type { Shape, ShapeType } from '../types/document'
 import { generateId } from '../utils/id'
 import { DEFAULT_FILL, DEFAULT_STROKE, DEFAULT_STROKE_WIDTH, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_FONT_WEIGHT, DEFAULT_TEXT } from '../utils/constants'
 
-const baseDefaults = {
+/**
+ * Field defaults shared by creation and by normalization on read, so a shape
+ * written by an older build ends up identical to one created today.
+ */
+export const baseDefaults = {
   name: '',
   x: 0,
   y: 0,
@@ -20,13 +24,14 @@ const baseDefaults = {
   // Placeholder — addShape assigns the real value from the sibling group,
   // since only the document knows what else is on the page.
   order: 0,
+  isMask: false,
 }
 
-const typeDefaults: Record<ShapeType, Partial<Shape>> = {
+export const typeDefaults: Record<ShapeType, Partial<Shape>> = {
   rectangle: { cornerRadius: [0, 0, 0, 0] },
   ellipse: {},
   line: { points: [0, 0, 100, 0], fill: '', stroke: '#000000', strokeWidth: 2, startCap: 'none', endCap: 'none' },
-  path: { pathData: '', closed: false, fill: '', stroke: '#000000', strokeWidth: 2 },
+  path: { pathData: '', closed: false, fill: '', stroke: '#000000', strokeWidth: 2, fillRule: 'nonzero' as const },
   text: {
     text: DEFAULT_TEXT,
     fontFamily: DEFAULT_FONT_FAMILY,
@@ -41,6 +46,8 @@ const typeDefaults: Record<ShapeType, Partial<Shape>> = {
     textTransform: 'none' as const,
     paragraphSpacing: 0,
     kerning: [],
+    textWrap: 'auto' as const,
+    fontVariant: 'normal' as const,
     fill: '#000000',
     width: 300,
     height: 36,

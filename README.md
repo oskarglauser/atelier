@@ -11,8 +11,9 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 ## Highlights
 
 - **Vector tools:** A pen tool, freehand drawing, path editing, and boolean operations for union, subtract, intersect, and exclude.
+- **Advanced vector editing:** Offset paths, expanded strokes, non-destructive masks, and compound paths with even-odd holes.
 - **CMYK soft proofing:** Preview how colors and images may behave in print.
-- **Typography:** Use installed system fonts, browse Google Fonts, and convert text to editable outlines. WOFF2 fonts are decoded locally in the browser.
+- **Typography:** Use installed system fonts, browse Google Fonts, and convert text to editable outlines. WOFF2 fonts are decoded locally in the browser. Balanced and pretty text wrapping, small caps, case transforms, and per-character kerning.
 - **Frames, groups, and layers:** Nest frames, clip their contents, move grouped objects together, and reorder layers with drag and drop.
 - **Object arrangement:** Align selected objects by their edges or centers and distribute spacing evenly.
 - **Gradients and fills:** Create linear gradients and add an optional noise texture.
@@ -23,12 +24,12 @@ Atelier is a focused workspace for sketching ideas, drawing vector marks, buildi
 - **Workspace preferences:** Choose a light, dark, or system theme and save your grid, snapping, ruler, color mode, and export settings.
 - **Desktop builds:** Download native packages for macOS, Windows, or Linux.
 
-## What's new in 0.7.0
+## What's new in 0.11.1
 
-- Settings can now be opened from the editor without leaving the current project.
-- The web app, landing page, and desktop packages now share a clear A-shaped icon.
-- Tagged releases build native Apple Silicon and Intel macOS packages, a Windows NSIS installer, and Linux DEB and AppImage packages.
-- Platform messaging on the landing page now reflects the available desktop builds.
+- Text boxes grow to fit their content when you finish typing.
+- Escape now keeps what you typed instead of discarding it, and cancelled empty text boxes clean themselves up.
+- Masked groups show a dashed outline on hover so clipped content is easier to understand.
+- The app loads noticeably faster: the editor and PDF export now load on demand.
 
 ## Getting started
 
@@ -79,7 +80,6 @@ Nothing else. No analytics, no tracking.
 - Importing SVG and PDF files, with better round-trip export
 - Reusable symbols, components, color styles, and typography styles
 - Project snapshots, version history, and backup files
-- Advanced vector editing such as offset paths, expanded strokes, masks, and compound paths
 - Shared brand libraries for colors, typography, logos, and other assets
 - Opening and saving selected Figma (`.fig`) and Illustrator (`.ai`) formats
 - Real-time collaboration

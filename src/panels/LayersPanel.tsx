@@ -6,7 +6,7 @@ import { updateShape, deleteShapes, moveShapes, type MoveDestination } from '../
 import { getDescendants, selectionRoots } from '../document/hierarchy'
 import { addPage, deletePage, renamePage } from '../document/createDoc'
 import { useProjectStore } from '../projects/projectStore'
-import { Square, Circle, Minus, Pen, Type, Image, Frame, Eye, EyeOff, Trash2, Group, ChevronRight, ChevronDown, Plus, FileText } from 'lucide-react'
+import { Square, Circle, Minus, Pen, Type, Image, Frame, Eye, EyeOff, Trash2, Group, ChevronRight, ChevronDown, Plus, FileText, Scissors } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { Shape } from '../types/document'
@@ -406,6 +406,9 @@ export function LayersPanel() {
             <span className="w-3 shrink-0" />
           )}
           <Icon size={12} className="opacity-50 shrink-0" strokeWidth={1.5} />
+          {shape.isMask && (
+            <Scissors size={10} className="shrink-0 text-accent/80" strokeWidth={1.5} aria-label="Mask" />
+          )}
           {editingShapeId === shape.id ? (
             <input
               autoFocus

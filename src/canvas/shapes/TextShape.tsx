@@ -1,8 +1,9 @@
 import { Text, Group, Rect } from 'react-konva'
 import type { TextShape as TextShapeType } from '../../types/document'
 import { useUIStore } from '../../store/uiStore'
-import { memo, useEffect, useMemo } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { loadGoogleFont } from '../../fonts/fontLoader'
+import { applyWrapStyle, makeKonvaMeasure } from '../../utils/textWrap'
 
 interface Props {
   shape: TextShapeType
@@ -20,12 +21,12 @@ function applyTextTransform(text: string, transform: string): string {
 
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-function measureCharWidths(text: string, fontFamily: string, fontSize: number, fontWeight: number, fontStyle: string): number[] {
+function measureCharWidths(text: string, fontFamily: string, fontSize: number, fontWeight: number, fontStyle: string, fontVariant: string): number[] {
   if (!measureCanvas) return text.split('').map(() => fontSize * 0.6)
   const ctx = measureCanvas.getContext('2d')
   if (!ctx) return text.split('').map(() => fontSize * 0.6)
   const style = fontStyle === 'italic' ? 'italic ' : ''
-  ctx.font = `${style}${fontWeight} ${fontSize}px ${fontFamily}`
+  ctx.font = `${style}${fontVariant} ${fontWeight} ${fontSize}px ${fontFamily}`
   return text.split('').map((char) => ctx.measureText(char).width)
 }
 
@@ -41,23 +42,51 @@ export const TextShapeComponent = memo(function TextShapeComponent({ shape, onSe
     loadGoogleFont(shape.fontFamily)
   }, [shape.fontFamily])
 
-  const displayText = useMemo(
-    () => applyTextTransform(shape.text, shape.textTransform || 'none'),
-    [shape.text, shape.textTransform]
-  )
+  const kerning = useMemo(() => shape.kerning || [], [shape.kerning])
+  const hasKerning = kerning.length > 0 && kerning.some((k) => k !== 0)
+  // Wrap styles pre-break text for Konva's line layout; the kerning branch is
+  // a custom single-baseline layout with no concept of lines, so it renders
+  // raw (transformed) text and ignores wrap entirely.
+  const needsMeasurement = shape.textWrap !== 'auto' || hasKerning
+
+  // Measurement runs against whatever font is loaded at render time; a web
+  // font arriving later changes every width, so re-measure on load. Gated —
+  // plain auto-wrap shapes never measure and skip the subscription.
+  const [fontEpoch, setFontEpoch] = useState(0)
+  useEffect(() => {
+    if (!needsMeasurement) return
+    const fonts = document.fonts
+    if (!fonts?.addEventListener) return
+    const onDone = () => setFontEpoch((e) => e + 1)
+    fonts.addEventListener('loadingdone', onDone)
+    return () => fonts.removeEventListener('loadingdone', onDone)
+  }, [needsMeasurement])
 
   const fontStyleStr = [
     shape.fontStyle === 'italic' ? 'italic' : '',
     shape.fontWeight !== 400 ? String(shape.fontWeight) : '',
   ].filter(Boolean).join(' ') || 'normal'
 
-  const kerning = useMemo(() => shape.kerning || [], [shape.kerning])
-  const hasKerning = kerning.length > 0 && kerning.some((k) => k !== 0)
+  const displayText = useMemo(() => {
+    const transformed = applyTextTransform(shape.text, shape.textTransform || 'none')
+    if (shape.textWrap === 'auto' || hasKerning) return transformed
+    // Balance/pretty pre-break the text; measurement mirrors Konva's, so the
+    // explicit newlines are exactly where Konva would be free not to re-wrap.
+    const measure = makeKonvaMeasure({
+      fontFamily: shape.fontFamily,
+      fontSize: shape.fontSize,
+      fontStyle: fontStyleStr,
+      fontVariant: shape.fontVariant,
+      letterSpacing: shape.letterSpacing || 0,
+    })
+    return applyWrapStyle(transformed, shape.textWrap, shape.width, measure)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fontEpoch forces re-measure after web fonts load
+  }, [shape.text, shape.textTransform, shape.textWrap, hasKerning, shape.fontFamily, shape.fontSize, fontStyleStr, shape.fontVariant, shape.letterSpacing, shape.width, fontEpoch])
 
   const charPositions = useMemo(() => {
     if (!hasKerning) return []
     const chars = displayText.split('')
-    const widths = measureCharWidths(displayText, shape.fontFamily, shape.fontSize, shape.fontWeight, shape.fontStyle)
+    const widths = measureCharWidths(displayText, shape.fontFamily, shape.fontSize, shape.fontWeight, shape.fontStyle, shape.fontVariant)
     const baseSpacing = shape.letterSpacing || 0
     const positions: number[] = []
     let x = 0
@@ -76,7 +105,8 @@ export const TextShapeComponent = memo(function TextShapeComponent({ shape, onSe
       return positions.map((p) => p + offset)
     }
     return positions
-  }, [hasKerning, displayText, shape.fontFamily, shape.fontSize, shape.fontWeight, shape.fontStyle, shape.letterSpacing, kerning, shape.textAlign, shape.width])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fontEpoch forces re-measure after web fonts load
+  }, [hasKerning, displayText, shape.fontFamily, shape.fontSize, shape.fontWeight, shape.fontStyle, shape.fontVariant, shape.letterSpacing, kerning, shape.textAlign, shape.width, fontEpoch])
 
   const commonHandlers = {
     onMouseDown: (e: { evt: MouseEvent }) => onSelect(shape.id, e.evt),
@@ -113,6 +143,7 @@ export const TextShapeComponent = memo(function TextShapeComponent({ shape, onSe
             fontSize={shape.fontSize}
             fontFamily={shape.fontFamily}
             fontStyle={fontStyleStr}
+            fontVariant={shape.fontVariant}
             lineHeight={shape.lineHeight}
             textDecoration={shape.textDecoration === 'none' ? '' : (shape.textDecoration || '')}
             fill={shape.fill || '#ffffff'}
@@ -136,6 +167,7 @@ export const TextShapeComponent = memo(function TextShapeComponent({ shape, onSe
       fontSize={shape.fontSize}
       fontFamily={shape.fontFamily}
       fontStyle={fontStyleStr}
+      fontVariant={shape.fontVariant}
       align={shape.textAlign}
       verticalAlign={shape.verticalAlign || 'top'}
       lineHeight={shape.lineHeight}

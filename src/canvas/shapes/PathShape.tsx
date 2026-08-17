@@ -25,6 +25,7 @@ export const PathShapeComponent = memo(function PathShapeComponent({ shape, onSe
       x={shape.x}
       y={shape.y}
       data={shape.pathData}
+      fillRule={shape.fillRule ?? 'nonzero'}
       {...(isGradient ? { fill: undefined, ...gradientKonvaProps } : { fill: shape.fill || undefined })}
       stroke={shape.stroke || undefined}
       strokeWidth={shape.strokeWidth}
