@@ -32,6 +32,27 @@ export function ensureDefaultPage(doc: Y.Doc) {
   })
 }
 
+/**
+ * Stable identity for the document itself, stored inside it.
+ *
+ * The local `projectId` is a nanoid minted on whichever machine created the
+ * project, so the same shared document has a different one on every peer — it
+ * can name a local IndexedDB database but never a shared sync room. This id
+ * travels with the content, so all peers agree on it.
+ *
+ * Written under the 'migration' origin: it is document identity, not an edit,
+ * and must not sit on the undo stack.
+ */
+export function ensureDocId(doc: Y.Doc): string {
+  const meta = doc.getMap('meta')
+  const existing = meta.get('docId')
+  if (typeof existing === 'string' && existing.length > 0) return existing
+
+  const docId = generateId()
+  doc.transact(() => meta.set('docId', docId), 'migration')
+  return docId
+}
+
 export function getPages(doc: Y.Doc): Array<{ id: string; name: string }> {
   const pages = doc.getArray('pages')
   const result: Array<{ id: string; name: string }> = []

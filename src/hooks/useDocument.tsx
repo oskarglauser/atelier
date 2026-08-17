@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react'
 import * as Y from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
-import { createDoc, ensureDefaultPage, getPages, getShapesArray } from '../document/createDoc'
+import { createDoc, ensureDefaultPage, ensureDocId, getPages, getShapesArray } from '../document/createDoc'
 import { createUndoManager } from '../document/undoManager'
 import { runMigrations } from '../document/migrations'
 import { useHistoryStore } from '../store/historyStore'
@@ -18,6 +18,12 @@ interface DocumentContextValue {
   shapesArray: Y.Array<Y.Map<unknown>>
   /** Presence for this document — null until the document has loaded */
   awareness: Awareness | null
+  /**
+   * Identity of the document itself, shared by every peer holding a copy.
+   * Unlike the local projectId this travels with the content, so it is what a
+   * network transport would use to name the room.
+   */
+  docId: string
 }
 
 const DocumentContext = createContext<DocumentContextValue | null>(null)
@@ -26,6 +32,7 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
   const [doc, setDoc] = useState<Y.Doc | null>(null)
   const [pages, setPages] = useState<Page[]>([])
   const [awareness, setAwareness] = useState<Awareness | null>(null)
+  const [docId, setDocId] = useState<string>('')
   const persistenceRef = useRef<IndexeddbPersistence | null>(null)
   const activePageId = useProjectStore((s) => s.activePageId)
   const setActivePageId = useProjectStore((s) => s.setActivePageId)
@@ -51,6 +58,7 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       // the only point where the stored schema is known and still untouched.
       runMigrations(newDoc)
       ensureDefaultPage(newDoc)
+      setDocId(ensureDocId(newDoc))
       const docPages = getPages(newDoc)
       setPages(docPages)
       if (docPages.length > 0 && !activePageId) {
@@ -97,7 +105,7 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
   const shapesArray = getShapesArray(doc, activePageId)
 
   return (
-    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray, awareness }}>
+    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray, awareness, docId }}>
       {children}
     </DocumentContext.Provider>
   )
