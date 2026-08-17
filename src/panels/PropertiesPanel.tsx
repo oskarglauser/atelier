@@ -1,11 +1,11 @@
 import { useShapes } from '../hooks/useShapes'
 import { useUIStore } from '../store/uiStore'
 import { useDocument } from '../hooks/useDocument'
-import { updateShape, addShape } from '../document/operations'
+import { updateShape, addShape, getAllShapes } from '../document/operations'
 import type { Shape, TextShape, LineShape, LineCap, FrameShape, FrameRuler, ExportConfig, ImageShape, PathShape } from '../types/document'
 import { countSubpaths } from '../utils/pathData'
 import { offsetSelectedPaths, canOffset, DEFAULT_OFFSET_AMOUNT } from '../operations/offsetPath'
-import { isContainer } from '../document/hierarchy'
+import { isContainer, selectionRoots, getDescendants } from '../document/hierarchy'
 import { useHistoryStore } from '../store/historyStore'
 import { useCallback, useMemo, useState } from 'react'
 import { useCanvasStore, type ColorMode } from '../store/canvasStore'
@@ -500,9 +500,34 @@ export function PropertiesPanel() {
   const textShape = first?.type === 'text' ? first as TextShape : null
 
   const update = useCallback((key: string, value: unknown) => {
-    selectedIds.forEach((id) => {
-      updateShape(doc, activePageId, id, { [key]: value } as Partial<Shape>)
-    })
+    // One transaction for the whole selection, so editing a field across
+    // several shapes is a single undo step rather than one per shape.
+    doc.transact(() => {
+      selectedIds.forEach((id) => {
+        updateShape(doc, activePageId, id, { [key]: value } as Partial<Shape>)
+      })
+    }, 'local')
+  }, [doc, activePageId, selectedIds])
+
+  /**
+   * Move each selected shape to an absolute x or y, carrying its contents.
+   *
+   * Child coordinates are absolute, so writing only the container's own x
+   * would move the frame or group and leave everything inside it behind.
+   */
+  const updatePosition = useCallback((axis: 'x' | 'y', value: number) => {
+    const all = getAllShapes(doc, activePageId)
+    const roots = selectionRoots(all, selectedIds)
+    doc.transact(() => {
+      for (const root of roots) {
+        const delta = value - root[axis]
+        if (delta === 0) continue
+        updateShape(doc, activePageId, root.id, { [axis]: value } as Partial<Shape>)
+        for (const child of getDescendants(all, root.id)) {
+          updateShape(doc, activePageId, child.id, { [axis]: child[axis] + delta } as Partial<Shape>)
+        }
+      }
+    }, 'local')
   }, [doc, activePageId, selectedIds])
 
   const fontEntry = textShape
@@ -561,8 +586,8 @@ export function PropertiesPanel() {
 
       <Section title="Position">
         <div className="grid grid-cols-2 gap-1.5">
-          <NumberField label="X" value={first.x} onChange={(v) => update('x', v)} />
-          <NumberField label="Y" value={first.y} onChange={(v) => update('y', v)} />
+          <NumberField label="X" value={first.x} onChange={(v) => updatePosition('x', v)} />
+          <NumberField label="Y" value={first.y} onChange={(v) => updatePosition('y', v)} />
         </div>
         <div className="mt-1.5 flex items-center gap-1">
           <div className="flex-1">

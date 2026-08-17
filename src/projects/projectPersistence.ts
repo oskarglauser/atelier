@@ -46,11 +46,23 @@ export async function saveProject(meta: ProjectMeta): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await openDB()
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')
     const store = tx.objectStore(STORE_NAME)
     store.delete(id)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
+  })
+
+  // The row above is only the project's metadata — its actual content lives in
+  // a separate per-project database. Without this the document data survives
+  // every deletion, invisibly, forever.
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(`atelier-project-${id}`)
+    // Resolve either way: a blocked or failed drop must not strand the caller,
+    // and the metadata row is already gone so the project is out of the UI.
+    request.onsuccess = () => resolve()
+    request.onerror = () => resolve()
+    request.onblocked = () => resolve()
   })
 }
