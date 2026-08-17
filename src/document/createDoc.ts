@@ -55,6 +55,32 @@ export function ensureDocId(doc: Y.Doc, preferred?: string): string {
   return docId
 }
 
+/**
+ * The document's own name.
+ *
+ * A project's name normally lives in `ProjectMeta`, which sits in a separate
+ * non-CRDT database and is per-machine — so it never reaches a collaborator,
+ * who would otherwise be left looking at "Shared project" forever. Keeping the
+ * name in the document too is what lets both sides show the same title.
+ *
+ * Empty when the document has never carried one, which is every document
+ * written before this existed.
+ */
+export function getDocName(doc: Y.Doc): string {
+  const name = doc.getMap('meta').get('name')
+  return typeof name === 'string' ? name : ''
+}
+
+/**
+ * Written under the 'migration' origin for the same reason as the document id:
+ * naming is not a canvas edit and has no business on the undo stack.
+ */
+export function setDocName(doc: Y.Doc, name: string) {
+  const meta = doc.getMap('meta')
+  if (meta.get('name') === name) return
+  doc.transact(() => meta.set('name', name), 'migration')
+}
+
 export function getPages(doc: Y.Doc): Array<{ id: string; name: string }> {
   const pages = doc.getArray('pages')
   const result: Array<{ id: string; name: string }> = []

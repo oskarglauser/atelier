@@ -13,6 +13,7 @@ interface ProjectStore {
   loadProjects: () => Promise<void>
   createProject: (name: string) => Promise<ProjectMeta>
   joinProject: (ticketText: string) => Promise<ProjectMeta | null>
+  renameProject: (id: string, name: string) => Promise<void>
   deleteProject: (id: string) => Promise<void>
   openProject: (id: string, pageId?: string) => void
   setActivePageId: (pageId: string) => void
@@ -71,6 +72,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     await saveProject(meta)
     set((s) => ({ projects: [meta, ...s.projects] }))
     return meta
+  },
+
+  /**
+   * Used when a shared document tells us its real name, replacing the
+   * placeholder a join starts with.
+   */
+  renameProject: async (id: string, name: string) => {
+    const project = get().projects.find((p) => p.id === id)
+    if (!project || project.name === name) return
+    const updated = { ...project, name }
+    await saveProject(updated)
+    set((s) => ({ projects: s.projects.map((p) => (p.id === id ? updated : p)) }))
   },
 
   deleteProject: async (id: string) => {

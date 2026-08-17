@@ -1,7 +1,15 @@
 import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react'
 import * as Y from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
-import { createDoc, ensureDefaultPage, ensureDocId, getPages, getShapesArray } from '../document/createDoc'
+import {
+  createDoc,
+  ensureDefaultPage,
+  ensureDocId,
+  getDocName,
+  getPages,
+  getShapesArray,
+  setDocName,
+} from '../document/createDoc'
 import { createUndoManager } from '../document/undoManager'
 import { runMigrations } from '../document/migrations'
 import { useHistoryStore } from '../store/historyStore'
@@ -68,6 +76,15 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       const resolvedDocId = ensureDocId(newDoc, meta?.joinDocId)
       setDocId(resolvedDocId)
 
+      // Give the document its name, so whoever joins sees the same title
+      // rather than the placeholder a join starts with. Only a document we
+      // did not join seeds it — a joiner writing its placeholder here would
+      // overwrite the real name for everyone.
+      if (!meta?.joinDocId && meta?.name && !getDocName(newDoc)) {
+        setDocName(newDoc, meta.name)
+      }
+      syncNameFromDoc()
+
       // Desktop only: peer-to-peer needs raw UDP for hole punching and mDNS
       // for local discovery, neither of which a browser can do.
       if (isTauri()) {
@@ -89,12 +106,24 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       setDoc(newDoc)
     })
 
+    // The name can arrive well after the first sync — a joiner connects with
+    // nothing and fills in once a peer answers — so keep watching rather than
+    // reading once.
+    function syncNameFromDoc() {
+      const shared = getDocName(newDoc)
+      if (!shared) return
+      void useProjectStore.getState().renameProject(projectId, shared)
+    }
+    const metaMap = newDoc.getMap('meta')
+    metaMap.observe(syncNameFromDoc)
+
     const updatePages = () => {
       setPages(getPages(newDoc))
     }
     newDoc.getArray('pages').observeDeep(updatePages)
 
     return () => {
+      metaMap.unobserve(syncNameFromDoc)
       newDoc.getArray('pages').unobserveDeep(updatePages)
       void irohRef.current?.destroy()
       irohRef.current = null
