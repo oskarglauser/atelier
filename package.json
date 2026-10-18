@@ -16,10 +16,12 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@hocuspocus/provider": "^4.7.1",
     "@tauri-apps/plugin-deep-link": "^2.4.9",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.0",
     "@types/opentype.js": "^1.3.9",
+    "better-auth": "^1.7.10",
     "jspdf": "^4.2.1",
     "konva": "^10.2.3",
     "lucide-react": "^0.577.0",

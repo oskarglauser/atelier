@@ -17,6 +17,7 @@ import { useIdentityStore } from '../store/identityStore'
 import { useProjectStore } from '../projects/projectStore'
 import { BroadcastChannelProvider } from '../collab/BroadcastChannelProvider'
 import { IrohProvider, type IrohStatus } from '../collab/IrohProvider'
+import { HostedProvider, type HostedStatus } from '../collab/HostedProvider'
 import { isTauri } from '../utils/isTauri'
 import type { Awareness } from 'y-protocols/awareness'
 import type { Page } from '../types/document'
@@ -36,17 +37,51 @@ interface DocumentContextValue {
   docId: string
   /** Peer-to-peer transport status. Null in the browser, where it never runs. */
   collabStatus: IrohStatus | null
+  /** Hosted transport status. Null for a local project, which has no server. */
+  hostedStatus: HostedStatus | null
+  /**
+   * Whether this replica may be edited.
+   *
+   * False while a hosted document is connecting, and for anyone the server
+   * granted read-only — someone following a view-only link. Always true for a
+   * local project, which answers to nobody.
+   */
+  canEdit: boolean
+}
+
+/**
+ * A document that lives on the server rather than on this machine.
+ *
+ * `shareToken` is set when someone arrived by link without an account; a
+ * signed-in user has a cookie instead and passes null.
+ */
+export interface CloudSource {
+  documentId: string
+  shareToken: string | null
 }
 
 const DocumentContext = createContext<DocumentContextValue | null>(null)
 
-export function DocumentProvider({ projectId, children }: { projectId: string; children: ReactNode }) {
+export function DocumentProvider({
+  projectId,
+  cloud,
+  children,
+}: {
+  projectId: string
+  /** Set to open a hosted document instead of a local one. */
+  cloud?: CloudSource
+  children: ReactNode
+}) {
   const [doc, setDoc] = useState<Y.Doc | null>(null)
   const [pages, setPages] = useState<Page[]>([])
   const [awareness, setAwareness] = useState<Awareness | null>(null)
-  const [docId, setDocId] = useState<string>('')
+  // Only a local document discovers its id (from storage, or a join ticket);
+  // a hosted one is named by the route, so that case is derived below.
+  const [localDocId, setLocalDocId] = useState<string>('')
   const [collabStatus, setCollabStatus] = useState<IrohStatus | null>(null)
+  const [hostedStatus, setHostedStatus] = useState<HostedStatus | null>(null)
   const irohRef = useRef<IrohProvider | null>(null)
+  const hostedRef = useRef<HostedProvider | null>(null)
   const persistenceRef = useRef<IndexeddbPersistence | null>(null)
   const activePageId = useProjectStore((s) => s.activePageId)
   const setActivePageId = useProjectStore((s) => s.setActivePageId)
@@ -54,11 +89,9 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
 
   useEffect(() => {
     const newDoc = createDoc()
-    const persistence = new IndexeddbPersistence(`atelier-project-${projectId}`, newDoc)
-    persistenceRef.current = persistence
 
-    // Cross-tab sync and presence. Other transports (see the collaboration
-    // plan) attach here the same way — the document model doesn't care which.
+    // Cross-tab sync and presence. Other transports attach here the same way —
+    // the document model does not care which, only that something moves bytes.
     const provider = new BroadcastChannelProvider(`atelier-project-${projectId}`, newDoc)
     const identity = useIdentityStore.getState()
     provider.awareness.setLocalStateField('user', {
@@ -67,14 +100,46 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       color: identity.color,
     })
 
-    persistence.once('synced', () => {
+    // A hosted document is the server's, not this machine's: it is not written
+    // to IndexedDB, so signing in on a shared computer leaves nothing behind,
+    // and there is one copy to be authoritative rather than two to reconcile.
+    if (cloud) {
+      hostedRef.current = new HostedProvider(
+        cloud.documentId,
+        newDoc,
+        provider.awareness,
+        cloud.shareToken,
+        (status) => {
+          setHostedStatus(status)
+          if (status.state !== 'connected') return
+          // Only once the server's copy has arrived. Creating the default
+          // page before then would add an empty one to a document that
+          // already has pages, and a viewer cannot write it back out again.
+          ensureDefaultPage(newDoc)
+          const cloudPages = getPages(newDoc)
+          setPages(cloudPages)
+          if (cloudPages.length > 0 && !activePageId) {
+            setActivePageId(cloudPages[0].id)
+          }
+          setAwareness(provider.awareness)
+          setDoc(newDoc)
+        },
+      )
+    }
+
+    const persistence = cloud
+      ? null
+      : new IndexeddbPersistence(`atelier-project-${projectId}`, newDoc)
+    persistenceRef.current = persistence
+
+    persistence?.once('synced', () => {
       // Before anything reads the document: IndexedDB has replayed, so this is
       // the only point where the stored schema is known and still untouched.
       runMigrations(newDoc)
       ensureDefaultPage(newDoc)
       const meta = useProjectStore.getState().projects.find((p) => p.id === projectId)
       const resolvedDocId = ensureDocId(newDoc, meta?.joinDocId)
-      setDocId(resolvedDocId)
+      setLocalDocId(resolvedDocId)
 
       // Give the document its name, so whoever joins sees the same title
       // rather than the placeholder a join starts with. Only a document we
@@ -110,6 +175,8 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
     // nothing and fills in once a peer answers — so keep watching rather than
     // reading once.
     function syncNameFromDoc() {
+      // A hosted document has no local project row to rename.
+      if (cloud) return
       const shared = getDocName(newDoc)
       if (!shared) return
       void useProjectStore.getState().renameProject(projectId, shared)
@@ -127,13 +194,16 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
       newDoc.getArray('pages').unobserveDeep(updatePages)
       void irohRef.current?.destroy()
       irohRef.current = null
+      hostedRef.current?.destroy()
+      hostedRef.current = null
       provider.destroy()
-      persistence.destroy()
+      persistence?.destroy()
       newDoc.destroy()
       setAwareness(null)
+      setHostedStatus(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, cloud?.documentId, cloud?.shareToken])
 
   useEffect(() => {
     if (!doc || !activePageId) return
@@ -157,7 +227,23 @@ export function DocumentProvider({ projectId, children }: { projectId: string; c
   const shapesArray = getShapesArray(doc, activePageId)
 
   return (
-    <DocumentContext.Provider value={{ doc, pages, activePageId, shapesArray, awareness, docId, collabStatus }}>
+    <DocumentContext.Provider
+      value={{
+        doc,
+        pages,
+        activePageId,
+        shapesArray,
+        awareness,
+        docId: cloud ? cloud.documentId : localDocId,
+        collabStatus,
+        hostedStatus,
+        // A local project answers to nobody; a hosted one may be edited only
+        // once the server has said so.
+        canEdit: cloud
+          ? hostedStatus?.state === 'connected' && !hostedStatus.readOnly
+          : true,
+      }}
+    >
       {children}
     </DocumentContext.Provider>
   )

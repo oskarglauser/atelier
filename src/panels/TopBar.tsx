@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useHistoryStore } from '../store/historyStore'
 import { useProjectStore } from '../projects/projectStore'
+import { useDocument } from '../hooks/useDocument'
+import { getDocName } from '../document/createDoc'
 import { getStageRef } from '../store/stageRef'
 import { captureThumbnail } from '../canvas/captureThumbnail'
 import { useUIStore } from '../store/uiStore'
@@ -24,6 +26,14 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const activeProject = projects.find((p) => p.id === activeProjectId)
+
+  // A hosted document has no local project row, so its title comes from the
+  // document itself — which is also the only place a share-link viewer can
+  // read it, having no access to the API that lists documents.
+  const { doc, hostedStatus } = useDocument()
+  const title = hostedStatus
+    ? getDocName(doc) || 'Shared document'
+    : activeProject?.name || 'Untitled'
 
   const closeProject = () => {
     const stage = getStageRef()
@@ -101,7 +111,7 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
           onClick={() => (dropdownOpen ? closeDropdown() : setDropdownOpen(true))}
           className="flex items-center gap-1 px-2 h-7 rounded-md text-sm text-text hover:bg-bg-hover transition-colors"
         >
-          <span className="truncate max-w-48">{activeProject?.name || 'Untitled'}</span>
+          <span className="truncate max-w-48">{title}</span>
           <ChevronDown size={12} strokeWidth={1.5} className="text-text-dim shrink-0" />
         </button>
 

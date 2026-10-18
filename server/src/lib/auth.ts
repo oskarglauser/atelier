@@ -7,6 +7,9 @@ import * as schema from "../db/schema/index.js";
 import { env } from "../env.js";
 import { sendSignInCode } from "./email.js";
 
+/** Where `npm run dev` serves the editor (vite.config.ts). */
+const DEV_EDITOR_ORIGIN = "http://localhost:1420";
+
 export function createAuth() {
   const google =
     features.google && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
@@ -21,7 +24,13 @@ export function createAuth() {
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: [env.APP_URL],
+    trustedOrigins: [
+      env.APP_URL,
+      // In development the editor is served by Vite on its own port and
+      // proxies /api here, so requests genuinely carry that origin. In
+      // production both are the same host and this adds nothing.
+      ...(env.NODE_ENV === "development" ? [DEV_EDITOR_ORIGIN] : []),
+    ],
     database: drizzleAdapter(getDb(), { provider: "pg", schema }),
     emailAndPassword: { enabled: false },
     advanced: {

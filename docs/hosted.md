@@ -54,13 +54,19 @@ putting auth in front of a single-page app.
 
 ## Why these pieces
 
-**Hocuspocus** for sync. The client already speaks the standard `y-protocols`
-wire format — `src/collab/yjsProtocol.ts` frames message type `0` for sync and
-`1` for awareness, which is exactly what `y-websocket` and Hocuspocus speak. So
-the server is not a translation layer, and the client needs only a third
-transport beside the two it has. Hocuspocus adds what a hand-rolled relay would
-otherwise have to grow: an `onAuthenticate` hook, genuinely read-only
-connections, debounced persistence, and a Postgres extension. MIT licensed.
+**Hocuspocus** for sync, with its own provider on the client.
+
+Hocuspocus does *not* speak plain y-websocket framing: it prefixes every
+message with the document name, so `src/collab/yjsProtocol.ts` — which the two
+peer transports use — cannot talk to it unchanged. Rather than teach that
+module a second framing, the hosted transport wraps `@hocuspocus/provider`,
+which takes the same `Y.Doc` and `Awareness` the rest of the app already has.
+
+The trade is deliberate. A y-websocket-compatible server would keep one
+protocol in the client, but then this side has to grow its own access checks,
+persistence, debouncing and reconnection — all of which Hocuspocus has, and
+all of which are easy to get subtly wrong. One extra protocol in the client is
+the cheaper half of that bargain. MIT licensed.
 
 **A third transport, not a rewrite.** `src/collab/` is deliberately "one
 protocol, several transports": `BroadcastChannelProvider` (tabs),

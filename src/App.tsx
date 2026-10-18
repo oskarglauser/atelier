@@ -6,6 +6,7 @@ import { JoinLanding } from './collab/JoinLanding'
 import { joinCodeFromHash, useJoinLinks } from './collab/useJoinLinks'
 import { decodeTicket } from './collab/ticket'
 import { isTauri } from './utils/isTauri'
+import { parseCloudHash, type CloudRoute } from './cloud/route'
 
 /**
  * The join code in `#/join/<code>`, but only if it is really a ticket.
@@ -43,8 +44,15 @@ export default function App() {
   useJoinLinks()
 
   const [joinCode, setJoinCode] = useState(() => validJoinCode(window.location.hash))
+  // A hosted document, which the editor opens instead of a local project.
+  const [cloudRoute, setCloudRoute] = useState<CloudRoute | null>(() =>
+    parseCloudHash(window.location.hash),
+  )
   useEffect(() => {
-    const onHashChange = () => setJoinCode(validJoinCode(window.location.hash))
+    const onHashChange = () => {
+      setJoinCode(validJoinCode(window.location.hash))
+      setCloudRoute(parseCloudHash(window.location.hash))
+    }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
@@ -61,6 +69,25 @@ export default function App() {
 
   if (joinCode && !isTauri() && !activeProjectId) {
     return <JoinLanding code={joinCode} />
+  }
+
+  // A hosted document stands on its own: its content comes from the server,
+  // so there is no local project behind it. The id doubles as the key, so
+  // moving between documents rebuilds the editor rather than reusing one
+  // pointed at the wrong doc.
+  if (cloudRoute) {
+    return (
+      <>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen bg-bg text-text-secondary">Loading...</div>}>
+          <Editor
+            key={cloudRoute.documentId}
+            projectId={cloudRoute.documentId}
+            cloud={cloudRoute}
+          />
+        </Suspense>
+        <UpdateNotification />
+      </>
+    )
   }
 
   return (

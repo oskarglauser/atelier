@@ -1,10 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getDb } from "../db/index.js";
 import { document, membership, shareLink } from "../db/schema/documents.js";
 import { getSession } from "../lib/auth.js";
+import * as Y from "yjs";
+
+/**
+ * A new document that already knows its own name.
+ *
+ * The title is kept in the document as well as the row because the row is
+ * only readable through the API, which someone opening a share link has no
+ * access to — without this they would be looking at "Untitled" forever. It
+ * is the same `meta.name` a local project uses, so both kinds of document
+ * carry their title the same way.
+ */
+function initialState(title: string): Uint8Array {
+  const doc = new Y.Doc();
+  doc.transact(() => doc.getMap("meta").set("name", title), "migration");
+  const state = Y.encodeStateAsUpdate(doc);
+  doc.destroy();
+  return state;
+}
 
 /** A share token: URL-safe, and long enough that guessing is not a strategy. */
 function newToken() {
@@ -51,10 +69,12 @@ export const documents = new Hono<Vars>()
     // The owner gets a membership row like anyone else, so permission is one
     // lookup rather than a special case (see db/schema/documents.ts).
     await db.transaction(async (tx) => {
+      const title = parsed.data.title ?? "Untitled";
       await tx.insert(document).values({
         id,
-        title: parsed.data.title ?? "Untitled",
+        title,
         ownerId: userId,
+        state: initialState(title),
       });
       await tx.insert(membership).values({
         documentId: id,
@@ -89,10 +109,20 @@ export const documents = new Hono<Vars>()
 
     if (created[0]) return c.json({ token: created[0].token }, 201);
 
+    // Only a live one. Without the revoked_at check this happily returns a
+    // token that was revoked earlier — the server refuses it on connect, so
+    // nothing is granted, but the owner is handed a link that silently does
+    // not work.
     const existing = await getDb()
       .select({ token: shareLink.token })
       .from(shareLink)
-      .where(and(eq(shareLink.documentId, documentId), eq(shareLink.role, "viewer")))
+      .where(
+        and(
+          eq(shareLink.documentId, documentId),
+          eq(shareLink.role, "viewer"),
+          isNull(shareLink.revokedAt),
+        ),
+      )
       .limit(1);
     return c.json({ token: existing[0]?.token });
   })

@@ -4,6 +4,7 @@ import { Plus, Trash2, Settings, Users } from 'lucide-react'
 import { SettingsPanel } from './SettingsPanel'
 import { Dialog, DialogCancel, DialogAction } from '../ui/Dialog'
 import { isTauri } from '../utils/isTauri'
+import { CloudSection } from '../cloud/CloudSection'
 
 export function ProjectBrowser() {
   const { projects, loading, loadProjects, createProject, joinProject, deleteProject, openProject } = useProjectStore()
@@ -100,6 +101,14 @@ export function ProjectBrowser() {
 
       <main className="flex-1 overflow-y-auto px-6 py-10 md:px-8">
         <div className="mx-auto max-w-7xl">
+        <CloudSection />
+
+        {projects.length > 0 && (
+          <h2 className="mb-4 text-[11px] uppercase tracking-widest text-text-dim">
+            On this machine
+          </h2>
+        )}
+
         {projects.length === 0 && (
           <div className="text-center py-32">
             <div className="text-2xl text-text mb-1" style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 400 }}>
