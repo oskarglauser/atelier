@@ -167,6 +167,20 @@ export function ProjectBrowser() {
         </a>
         <span aria-hidden>·</span>
         <span>v{__APP_VERSION__}</span>
+        <span aria-hidden>·</span>
+        {/*
+          The AGPL asks that anyone using this over a network be offered its
+          source. Keeping the link in the app itself means a deployment is
+          compliant without anyone having to remember to add it.
+        */}
+        <a
+          href="https://github.com/oskarglauser/atelier"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-text-dim transition-colors"
+        >
+          Source
+        </a>
       </footer>
 
       {/* Join Shared Document Dialog */}

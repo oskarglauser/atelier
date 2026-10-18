@@ -177,6 +177,19 @@ React 19 · TypeScript · Vite · Tailwind CSS 4 · Konva.js (canvas rendering) 
 
 ## License
 
-[GPL-3.0](LICENSE) © Oskar Glauser
+[AGPL-3.0](LICENSE) © Oskar Glauser
 
-Atelier is free software: you can use, study, share, and improve it. If you distribute a modified version, it must remain open source under the same license.
+Atelier is free software: you can use, study, share, and improve it. If you
+distribute a modified version, or run one as a service other people use over a
+network, it must remain open source under the same license.
+
+That last part is the difference between the AGPL and the ordinary GPL, and it
+is deliberate. Under the GPL, running modified software as a hosted service is
+not distribution, so a company could build a closed, paid Atelier and never
+publish a line of it. The AGPL closes that gap: improvements come back whether
+the software is shipped or hosted.
+
+Contributions are accepted under a [Contributor License Agreement](CLA.md), so
+that the project can also be offered under a commercial license. This is what
+makes a paid hosted version possible without taking anything away from the open
+source one — the code here stays free, forever, under the AGPL.

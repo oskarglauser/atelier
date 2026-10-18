@@ -2,6 +2,12 @@
 
 Thanks for your interest in contributing! This document explains how the codebase is put together and what a good pull request looks like.
 
+**Before your first pull request**, read [CLA.md](CLA.md) and say in the PR that
+you agree to it. One line, once, and it covers everything you contribute after.
+It lets the project be offered under a commercial license alongside the
+[AGPL-3.0](LICENSE), which is what funds the work — the code here stays free
+software regardless.
+
 ## Development setup
 
 Requirements: Node.js 22+ (and Rust, only if you want to run the desktop app).
