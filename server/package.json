@@ -1,0 +1,37 @@
+{
+  "name": "@atelier/server",
+  "private": true,
+  "type": "module",
+  "description": "Hosted Atelier: accounts, cloud documents and live collaboration.",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "dev": "tsx watch --env-file=../.env src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@hocuspocus/extension-database": "^4.7.1",
+    "@hocuspocus/server": "^4.7.1",
+    "@hono/node-server": "^1.19.9",
+    "better-auth": "^1.7.10",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "nodemailer": "^10.1.0",
+    "postgres": "^3.4.9",
+    "ws": "^8.19.0",
+    "yjs": "^13.6.30",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/nodemailer": "^8.0.2",
+    "@types/ws": "^8.18.2",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}

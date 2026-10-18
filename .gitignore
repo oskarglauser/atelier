@@ -12,8 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Claude Code
-.claude/
+# Claude Code. settings.json is committed (infra INFRA.md "Every project
+# must have"); anything else in here is local.
+.claude/*
+!.claude/settings.json
 
 # Editor directories and files
 .vscode/*
@@ -36,3 +38,7 @@ app-icon.png
 *.key
 .env
 .env.*
+!.env.example
+
+# Server build output
+server/dist

@@ -109,7 +109,7 @@ with embedded data URLs are migrated on upload.
 
 ## Local development
 
-Project number `04`: app on `3004`, Postgres on `5404`.
+Project number `06`: app on `3006`, Postgres on `5406`.
 
 ```bash
 cp .env.example .env     # fill in local values

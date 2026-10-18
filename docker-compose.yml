@@ -1,0 +1,24 @@
+# Local dependencies only. The app runs on the host with `npm run dev`.
+# Postgres major matches production (infra INFRA.md). POSTGRES_PORT comes
+# from .env so several projects can run at once; Atelier is 5404.
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "${POSTGRES_PORT:?set POSTGRES_PORT in .env}:5432"
+    volumes:
+      # Postgres 18+ keeps its data under /var/lib/postgresql (not .../data).
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
